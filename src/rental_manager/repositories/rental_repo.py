@@ -1,0 +1,383 @@
+"""Repository helpers for rental persistence."""
+
+from __future__ import annotations
+
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Iterable, Optional
+
+from rental_manager.db.connection import get_connection, transaction
+from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, RentalStatus
+from rental_manager.logging_config import get_logger
+from rental_manager.paths import get_db_path
+from rental_manager.repositories.mappers import rental_from_row, rental_item_from_row
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _coerce_status(status: str | RentalStatus) -> RentalStatus:
+    if isinstance(status, RentalStatus):
+        return status
+    return RentalStatus(status)
+
+
+def _payment_status(paid_value: float, total_value: float) -> PaymentStatus:
+    if paid_value <= 0:
+        return PaymentStatus.UNPAID
+    if paid_value < total_value:
+        return PaymentStatus.PARTIAL
+    return PaymentStatus.PAID
+
+
+def _build_items(
+    items: Iterable[dict[str, object]],
+    *,
+    timestamp: str,
+) -> tuple[list[dict[str, object]], float]:
+    normalized: list[dict[str, object]] = []
+    total_value = 0.0
+    for item in items:
+        qty = int(item["qty"])
+        unit_price = float(item["unit_price"])
+        line_total = qty * unit_price
+        normalized.append(
+            {
+                "product_id": int(item["product_id"]),
+                "qty": qty,
+                "unit_price": unit_price,
+                "line_total": line_total,
+                "created_at": timestamp,
+                "updated_at": timestamp,
+            }
+        )
+        total_value += line_total
+    return normalized, total_value
+
+
+@contextmanager
+def _optional_connection(
+    connection: Optional[sqlite3.Connection],
+) -> Iterable[sqlite3.Connection]:
+    if connection is not None:
+        connection.row_factory = sqlite3.Row
+        yield connection
+        return
+    new_connection = get_connection(get_db_path())
+    try:
+        yield new_connection
+    finally:
+        new_connection.close()
+
+
+def create_rental(
+    customer_id: int,
+    event_date: str,
+    start_date: str,
+    end_date: str,
+    address: Optional[str],
+    items: Iterable[dict[str, object]],
+    total_value: Optional[float],
+    paid_value: float = 0,
+    status: str | RentalStatus = RentalStatus.DRAFT,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> Rental:
+    """Create a rental and its items in a transaction."""
+    logger = get_logger("rental_repo")
+    created_at = _now_iso()
+    normalized_items, computed_total = _build_items(items, timestamp=created_at)
+    final_total = computed_total if total_value is None else float(total_value)
+    payment_status = _payment_status(paid_value, final_total)
+    rental_status = _coerce_status(status)
+    try:
+        with _optional_connection(connection) as conn:
+            with transaction(conn):
+                cursor = conn.execute(
+                    """
+                    INSERT INTO rentals (
+                        customer_id,
+                        event_date,
+                        start_date,
+                        end_date,
+                        address,
+                        status,
+                        total_value,
+                        paid_value,
+                        payment_status,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        customer_id,
+                        event_date,
+                        start_date,
+                        end_date,
+                        address,
+                        rental_status.value,
+                        final_total,
+                        paid_value,
+                        payment_status.value,
+                        created_at,
+                        created_at,
+                    ),
+                )
+                rental_id = cursor.lastrowid
+                for item in normalized_items:
+                    conn.execute(
+                        """
+                        INSERT INTO rental_items (
+                            rental_id,
+                            product_id,
+                            qty,
+                            unit_price,
+                            line_total,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            rental_id,
+                            item["product_id"],
+                            item["qty"],
+                            item["unit_price"],
+                            item["line_total"],
+                            item["created_at"],
+                            item["updated_at"],
+                        ),
+                    )
+    except Exception:
+        logger.exception("Failed to create rental")
+        raise
+
+    return Rental(
+        id=rental_id,
+        customer_id=customer_id,
+        event_date=event_date,
+        start_date=start_date,
+        end_date=end_date,
+        address=address,
+        status=rental_status,
+        total_value=final_total,
+        paid_value=paid_value,
+        payment_status=payment_status,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+
+def update_rental(
+    rental_id: int,
+    customer_id: int,
+    event_date: str,
+    start_date: str,
+    end_date: str,
+    address: Optional[str],
+    items: Iterable[dict[str, object]],
+    total_value: Optional[float],
+    paid_value: float,
+    status: str | RentalStatus,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> Optional[Rental]:
+    """Update rental data and replace items in a transaction."""
+    logger = get_logger("rental_repo")
+    updated_at = _now_iso()
+    normalized_items, computed_total = _build_items(items, timestamp=updated_at)
+    final_total = computed_total if total_value is None else float(total_value)
+    payment_status = _payment_status(paid_value, final_total)
+    rental_status = _coerce_status(status)
+    try:
+        with _optional_connection(connection) as conn:
+            with transaction(conn):
+                cursor = conn.execute(
+                    """
+                    UPDATE rentals
+                    SET
+                        customer_id = ?,
+                        event_date = ?,
+                        start_date = ?,
+                        end_date = ?,
+                        address = ?,
+                        status = ?,
+                        total_value = ?,
+                        paid_value = ?,
+                        payment_status = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        customer_id,
+                        event_date,
+                        start_date,
+                        end_date,
+                        address,
+                        rental_status.value,
+                        final_total,
+                        paid_value,
+                        payment_status.value,
+                        updated_at,
+                        rental_id,
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    return None
+                conn.execute(
+                    "DELETE FROM rental_items WHERE rental_id = ?",
+                    (rental_id,),
+                )
+                for item in normalized_items:
+                    conn.execute(
+                        """
+                        INSERT INTO rental_items (
+                            rental_id,
+                            product_id,
+                            qty,
+                            unit_price,
+                            line_total,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            rental_id,
+                            item["product_id"],
+                            item["qty"],
+                            item["unit_price"],
+                            item["line_total"],
+                            item["created_at"],
+                            item["updated_at"],
+                        ),
+                    )
+    except Exception:
+        logger.exception("Failed to update rental id=%s", rental_id)
+        raise
+
+    return Rental(
+        id=rental_id,
+        customer_id=customer_id,
+        event_date=event_date,
+        start_date=start_date,
+        end_date=end_date,
+        address=address,
+        status=rental_status,
+        total_value=final_total,
+        paid_value=paid_value,
+        payment_status=payment_status,
+        updated_at=updated_at,
+    )
+
+
+def set_status(
+    rental_id: int,
+    status: str | RentalStatus,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> bool:
+    """Update rental status."""
+    logger = get_logger("rental_repo")
+    updated_at = _now_iso()
+    rental_status = _coerce_status(status)
+    try:
+        with _optional_connection(connection) as conn:
+            with transaction(conn):
+                cursor = conn.execute(
+                    """
+                    UPDATE rentals
+                    SET status = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (rental_status.value, updated_at, rental_id),
+                )
+    except Exception:
+        logger.exception("Failed to update rental status id=%s", rental_id)
+        raise
+    return cursor.rowcount > 0
+
+
+def list_rentals(
+    *,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str | RentalStatus] = None,
+    payment_status: Optional[str | PaymentStatus] = None,
+    search: Optional[str] = None,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[Rental]:
+    """List rentals with optional filters (event date, status, payment, search)."""
+    logger = get_logger("rental_repo")
+    clauses: list[str] = []
+    params: list[object] = []
+    if start_date:
+        clauses.append("r.event_date >= ?")
+        params.append(start_date)
+    if end_date:
+        clauses.append("r.event_date <= ?")
+        params.append(end_date)
+    if status:
+        clauses.append("r.status = ?")
+        params.append(_coerce_status(status).value)
+    if payment_status:
+        status_value = (
+            payment_status.value
+            if isinstance(payment_status, PaymentStatus)
+            else str(payment_status)
+        )
+        clauses.append("r.payment_status = ?")
+        params.append(status_value)
+    if search:
+        clauses.append("(r.address LIKE ? OR c.name LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%"])
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    query = f"""
+        SELECT r.*
+        FROM rentals r
+        JOIN customers c ON c.id = r.customer_id
+        {where_clause}
+        ORDER BY r.event_date, r.start_date, r.id
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, params).fetchall()
+    except Exception:
+        logger.exception("Failed to list rentals")
+        raise
+    return [rental_from_row(row) for row in rows]
+
+
+def get_rental_with_items(
+    rental_id: int,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> Optional[tuple[Rental, list[RentalItem]]]:
+    """Fetch a rental and its items."""
+    logger = get_logger("rental_repo")
+    try:
+        with _optional_connection(connection) as conn:
+            rental_row = conn.execute(
+                "SELECT * FROM rentals WHERE id = ?",
+                (rental_id,),
+            ).fetchone()
+            if not rental_row:
+                return None
+            item_rows = conn.execute(
+                """
+                SELECT * FROM rental_items
+                WHERE rental_id = ?
+                ORDER BY id
+                """,
+                (rental_id,),
+            ).fetchall()
+    except Exception:
+        logger.exception("Failed to fetch rental id=%s", rental_id)
+        raise
+    return rental_from_row(rental_row), [
+        rental_item_from_row(row) for row in item_rows
+    ]
