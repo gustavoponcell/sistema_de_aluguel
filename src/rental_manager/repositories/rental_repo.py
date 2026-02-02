@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Optional
 
@@ -12,6 +13,26 @@ from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, Rent
 from rental_manager.logging_config import get_logger
 from rental_manager.paths import get_db_path
 from rental_manager.repositories.mappers import rental_from_row, rental_item_from_row
+
+
+@dataclass(frozen=True)
+class FinanceReport:
+    total_received: float
+    total_to_receive: float
+    rentals_count: int
+
+
+@dataclass(frozen=True)
+class RentalFinanceRow:
+    id: int
+    customer_name: str
+    event_date: str
+    start_date: str
+    end_date: str
+    status: RentalStatus
+    payment_status: PaymentStatus
+    total_value: float
+    paid_value: float
 
 
 def _now_iso() -> str:
@@ -336,6 +357,104 @@ def set_payment(
         logger.exception("Failed to update rental payment id=%s", rental_id)
         raise
     return cursor.rowcount > 0
+
+
+def get_finance_report_by_period(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> FinanceReport:
+    """Return aggregate finance totals for the given event date period."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            COALESCE(SUM(
+                CASE
+                    WHEN r.payment_status IN ('partial', 'paid') THEN r.paid_value
+                    ELSE 0
+                END
+            ), 0) AS total_received,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.payment_status IN ('unpaid', 'partial')
+                    THEN CASE
+                        WHEN (r.total_value - r.paid_value) > 0
+                        THEN (r.total_value - r.paid_value)
+                        ELSE 0
+                    END
+                    ELSE 0
+                END
+            ), 0) AS total_to_receive,
+            COUNT(*) AS rentals_count
+        FROM rentals r
+        WHERE r.event_date >= ?
+          AND r.event_date <= ?
+          AND r.status != 'canceled'
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            row = conn.execute(query, (start_date, end_date)).fetchone()
+    except Exception:
+        logger.exception("Failed to build finance report")
+        raise
+    if not row:
+        return FinanceReport(total_received=0.0, total_to_receive=0.0, rentals_count=0)
+    return FinanceReport(
+        total_received=float(row["total_received"] or 0),
+        total_to_receive=float(row["total_to_receive"] or 0),
+        rentals_count=int(row["rentals_count"] or 0),
+    )
+
+
+def list_rentals_by_period(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[RentalFinanceRow]:
+    """List rentals for finance reports in the given event date period."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            r.id,
+            r.event_date,
+            r.start_date,
+            r.end_date,
+            r.status,
+            r.total_value,
+            r.paid_value,
+            r.payment_status,
+            c.name AS customer_name
+        FROM rentals r
+        JOIN customers c ON c.id = r.customer_id
+        WHERE r.event_date >= ?
+          AND r.event_date <= ?
+          AND r.status != 'canceled'
+        ORDER BY r.event_date, r.start_date, r.id
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, (start_date, end_date)).fetchall()
+    except Exception:
+        logger.exception("Failed to list rentals by period")
+        raise
+    result: list[RentalFinanceRow] = []
+    for row in rows:
+        result.append(
+            RentalFinanceRow(
+                id=int(row["id"]),
+                customer_name=row["customer_name"],
+                event_date=row["event_date"],
+                start_date=row["start_date"],
+                end_date=row["end_date"],
+                status=RentalStatus(row["status"]),
+                payment_status=PaymentStatus(row["payment_status"]),
+                total_value=float(row["total_value"]),
+                paid_value=float(row["paid_value"]),
+            )
+        )
+    return result
 
 
 def list_rentals(
