@@ -13,6 +13,7 @@ from rental_manager.logging_config import configure_logging, get_logger
 from rental_manager.paths import (
     get_app_data_dir,
     get_backup_dir,
+    get_config_path,
     get_db_path,
     get_logs_dir,
 )
@@ -21,6 +22,7 @@ from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.main_window import MainWindow
+from rental_manager.utils.backup import export_backup, load_backup_settings
 
 
 def main() -> int:
@@ -34,6 +36,13 @@ def main() -> int:
     config = AppConfig()
     logger = get_logger(__name__)
     logger.info("Starting %s", config.app_name)
+    backup_settings = load_backup_settings(get_config_path())
+    if backup_settings.auto_backup_on_start:
+        try:
+            backup_path = export_backup(get_db_path(), get_backup_dir())
+            logger.info("Backup automático criado em %s", backup_path)
+        except Exception:
+            logger.exception("Falha ao criar backup automático.")
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(config.app_name)

@@ -8,6 +8,7 @@ from pathlib import Path
 from rental_manager.config import (
     APP_DATA_DIRNAME,
     BACKUP_DIRNAME,
+    CONFIG_FILENAME,
     DB_FILENAME,
     LOGS_DIRNAME,
     PDF_DIRNAME,
@@ -47,3 +48,8 @@ def get_logs_dir() -> Path:
 def get_pdfs_dir() -> Path:
     """Create and return the PDFs directory inside the app data folder."""
     return _ensure_dir(get_app_data_dir() / PDF_DIRNAME)
+
+
+def get_config_path() -> Path:
+    """Return the path to the JSON configuration file."""
+    return get_app_data_dir() / CONFIG_FILENAME
