@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from types import SimpleNamespace
 from typing import List, Optional
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
-from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, RentalStatus
+from rental_manager.domain.models import (
+    Customer,
+    PaymentStatus,
+    Rental,
+    RentalItem,
+    RentalStatus,
+)
+from rental_manager.paths import get_pdfs_dir
 from rental_manager.repositories import rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
+from rental_manager.utils.pdf_generator import generate_rental_pdf
 
 
 def _format_currency(value: float) -> str:
@@ -993,10 +1002,84 @@ class RentalsScreen(QtWidgets.QWidget):
 
     def _on_pdf(self) -> None:
         rental = self._get_selected_rental()
-        if not rental:
+        if not rental or not rental.id:
             return
-        QtWidgets.QMessageBox.information(
+        choice, ok = QtWidgets.QInputDialog.getItem(
             self,
             "Gerar PDF",
-            "A geração de PDF estará disponível em breve.",
+            "Selecione o tipo de documento:",
+            ["Contrato", "Recibo"],
+            0,
+            False,
         )
+        if not ok:
+            return
+        kind = "contract" if choice == "Contrato" else "receipt"
+        try:
+            rental_data = rental_repo.get_rental_with_items(
+                rental.id,
+                connection=self._services.connection,
+            )
+            if not rental_data:
+                raise RuntimeError("Aluguel não encontrado.")
+            rental, items = rental_data
+            customer = self._services.customer_repo.get_by_id(rental.customer_id)
+            if not customer:
+                customer = Customer(
+                    id=None,
+                    name="Cliente não encontrado",
+                    phone=None,
+                    notes=None,
+                )
+            products = self._services.product_repo.list_all()
+            product_map = {product.id: product for product in products}
+            items_for_pdf = []
+            for item in items:
+                product = product_map.get(item.product_id)
+                items_for_pdf.append(
+                    SimpleNamespace(
+                        product_id=item.product_id,
+                        product_name=product.name if product else f"Produto {item.product_id}",
+                        qty=item.qty,
+                        unit_price=item.unit_price,
+                        line_total=item.line_total,
+                    )
+                )
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = (
+                get_pdfs_dir() / f"aluguel_{rental.id}_{timestamp}_{kind}.pdf"
+            )
+            generate_rental_pdf(
+                (rental, items_for_pdf, customer),
+                output_path,
+                kind=kind,
+            )
+        except Exception:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível gerar o PDF. Tente novamente.",
+            )
+            return
+
+        message = QtWidgets.QMessageBox(self)
+        message.setWindowTitle("PDF gerado")
+        message.setText(
+            "PDF gerado com sucesso. Deseja abrir o arquivo ou a pasta de destino?"
+        )
+        open_file_button = message.addButton("Abrir PDF", QtWidgets.QMessageBox.AcceptRole)
+        open_folder_button = message.addButton(
+            "Abrir pasta", QtWidgets.QMessageBox.AcceptRole
+        )
+        message.addButton("Fechar", QtWidgets.QMessageBox.RejectRole)
+        message.exec()
+
+        clicked = message.clickedButton()
+        if clicked == open_file_button:
+            QtGui.QDesktopServices.openUrl(
+                QtCore.QUrl.fromLocalFile(str(output_path))
+            )
+        elif clicked == open_folder_button:
+            QtGui.QDesktopServices.openUrl(
+                QtCore.QUrl.fromLocalFile(str(output_path.parent))
+            )
