@@ -13,6 +13,7 @@ LOG_FILENAME = "app.log"
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUP_COUNT = 3
 PDF_DIRNAME = "pdfs"
+EXPORTS_DIRNAME = "exports"
 CONFIG_FILENAME = "config.json"
 
 

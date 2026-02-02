@@ -10,6 +10,7 @@ from rental_manager.config import (
     BACKUP_DIRNAME,
     CONFIG_FILENAME,
     DB_FILENAME,
+    EXPORTS_DIRNAME,
     LOGS_DIRNAME,
     PDF_DIRNAME,
 )
@@ -48,6 +49,11 @@ def get_logs_dir() -> Path:
 def get_pdfs_dir() -> Path:
     """Create and return the PDFs directory inside the app data folder."""
     return _ensure_dir(get_app_data_dir() / PDF_DIRNAME)
+
+
+def get_exports_dir() -> Path:
+    """Create and return the exports directory inside the app data folder."""
+    return _ensure_dir(get_app_data_dir() / EXPORTS_DIRNAME)
 
 
 def get_config_path() -> Path:
