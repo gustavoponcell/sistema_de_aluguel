@@ -7,8 +7,14 @@ import sys
 from PySide6 import QtWidgets
 
 from rental_manager.config import AppConfig
+from rental_manager.db import init_db
 from rental_manager.logging_config import configure_logging, get_logger
-from rental_manager.paths import get_app_data_dir, get_backup_dir, get_logs_dir
+from rental_manager.paths import (
+    get_app_data_dir,
+    get_backup_dir,
+    get_db_path,
+    get_logs_dir,
+)
 from rental_manager.ui.main_window import MainWindow
 
 
@@ -18,6 +24,7 @@ def main() -> int:
     get_app_data_dir()
     get_backup_dir()
     get_logs_dir()
+    init_db(get_db_path())
 
     config = AppConfig()
     logger = get_logger(__name__)
