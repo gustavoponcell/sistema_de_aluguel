@@ -5,29 +5,39 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-APP_FOLDER_NAME = "RentalManager"
+from rental_manager.config import (
+    APP_DATA_DIRNAME,
+    BACKUP_DIRNAME,
+    DB_FILENAME,
+    LOGS_DIRNAME,
+)
+
+
+def _ensure_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def get_app_data_dir() -> Path:
-    """Return the app data directory for the current user."""
+    """Create and return the app data directory for the current user."""
     appdata = os.getenv("APPDATA")
     if appdata:
-        return Path(appdata) / APP_FOLDER_NAME
-    return Path.home() / ".rental_manager"
+        base_dir = Path(appdata)
+    else:
+        base_dir = Path.home() / ".rental_manager"
+    return _ensure_dir(base_dir / APP_DATA_DIRNAME)
 
 
-def ensure_app_data_dir() -> Path:
-    """Create and return the app data directory."""
-    app_dir = get_app_data_dir()
-    app_dir.mkdir(parents=True, exist_ok=True)
-    return app_dir
-
-
-def get_log_dir() -> Path:
-    """Return the log directory inside the app data folder."""
-    return ensure_app_data_dir() / "logs"
-
-
-def get_database_path() -> Path:
+def get_db_path() -> Path:
     """Return the path to the SQLite database file."""
-    return ensure_app_data_dir() / "rental_manager.db"
+    return get_app_data_dir() / DB_FILENAME
+
+
+def get_backup_dir() -> Path:
+    """Create and return the backup directory inside the app data folder."""
+    return _ensure_dir(get_app_data_dir() / BACKUP_DIRNAME)
+
+
+def get_logs_dir() -> Path:
+    """Create and return the log directory inside the app data folder."""
+    return _ensure_dir(get_app_data_dir() / LOGS_DIRNAME)
