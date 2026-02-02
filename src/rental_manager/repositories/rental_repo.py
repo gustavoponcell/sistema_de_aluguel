@@ -24,6 +24,12 @@ def _coerce_status(status: str | RentalStatus) -> RentalStatus:
     return RentalStatus(status)
 
 
+def _coerce_payment_status(status: str | PaymentStatus) -> PaymentStatus:
+    if isinstance(status, PaymentStatus):
+        return status
+    return PaymentStatus(status)
+
+
 def _payment_status(paid_value: float, total_value: float) -> PaymentStatus:
     if paid_value <= 0:
         return PaymentStatus.UNPAID
@@ -298,6 +304,36 @@ def set_status(
                 )
     except Exception:
         logger.exception("Failed to update rental status id=%s", rental_id)
+        raise
+    return cursor.rowcount > 0
+
+
+def set_payment(
+    rental_id: int,
+    paid_value: float,
+    payment_status: str | PaymentStatus,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> bool:
+    """Update rental payment fields."""
+    logger = get_logger("rental_repo")
+    updated_at = _now_iso()
+    status_value = _coerce_payment_status(payment_status)
+    try:
+        with _optional_connection(connection) as conn:
+            with transaction(conn):
+                cursor = conn.execute(
+                    """
+                    UPDATE rentals
+                    SET paid_value = ?,
+                        payment_status = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (paid_value, status_value.value, updated_at, rental_id),
+                )
+    except Exception:
+        logger.exception("Failed to update rental payment id=%s", rental_id)
         raise
     return cursor.rowcount > 0
 
