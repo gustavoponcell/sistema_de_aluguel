@@ -1,5 +1,4 @@
 PySide6
-pyqtdarktheme>=2.1.0
 reportlab
 PyInstaller
 python-dateutil

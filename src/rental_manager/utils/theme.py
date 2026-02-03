@@ -6,18 +6,12 @@ import sys
 from dataclasses import dataclass
 from typing import Literal
 
-from PySide6 import QtWidgets
+from PySide6 import QtGui, QtWidgets
 
 from rental_manager.logging_config import get_logger
 from rental_manager.utils.config_store import load_config_data, save_config_data
 
 ThemeChoice = Literal["light", "dark", "system"]
-
-try:
-    import qdarktheme  # type: ignore
-except ImportError:
-    qdarktheme = None
-
 
 @dataclass(frozen=True)
 class ThemeSettings:
@@ -77,169 +71,129 @@ def resolve_theme_choice(choice: ThemeChoice) -> str:
 
 
 def apply_theme(app: QtWidgets.QApplication, theme_name: str) -> bool:
-    """Apply qdarktheme plus custom tweaks."""
-    if qdarktheme is None:
-        return False
     try:
-        if hasattr(qdarktheme, "setup_theme"):
-            qdarktheme.setup_theme(theme_name)
-            app.setStyleSheet(_theme_stylesheet(theme_name))
-            return True
-        if hasattr(qdarktheme, "load_stylesheet"):
-            stylesheet = qdarktheme.load_stylesheet(theme_name)
-            app.setStyleSheet(f"{stylesheet}\n{_theme_stylesheet(theme_name)}")
-            return True
-        if hasattr(qdarktheme, "set_theme"):
-            qdarktheme.set_theme(theme_name)
-            app.setStyleSheet(_theme_stylesheet(theme_name))
-            return True
+        app.setStyle("Fusion")
+        if theme_name == "dark":
+            app.setPalette(_build_dark_palette())
+            app.setStyleSheet(_dark_stylesheet())
+        else:
+            app.setPalette(app.style().standardPalette())
+            app.setStyleSheet("")
+        return True
     except Exception:
         return False
-    return False
 
 
 def apply_theme_from_choice(
     app: QtWidgets.QApplication, choice: ThemeChoice
 ) -> bool:
     """Apply theme from the given choice and return True if applied."""
-    theme_name = resolve_theme_choice(choice)
     logger = get_logger(__name__)
+    try:
+        theme_name = resolve_theme_choice(choice)
+    except Exception:
+        theme_name = "light"
     applied = False
     try:
         applied = apply_theme(app, theme_name)
     except Exception:
         applied = False
-    if not applied:
-        try:
-            app.setStyle("Fusion")
-            app.setStyleSheet("")
-        except Exception:
-            return False
-        return False
-    logger.info("Tema aplicado: %s (configurado: %s)", theme_name, choice)
-    return True
+    if applied:
+        logger.info("Tema aplicado: %s (configurado: %s)", theme_name, choice)
+    return applied
 
 
-def _theme_stylesheet(theme_name: str) -> str:
-    if theme_name == "dark":
-        return """
-        QHeaderView::section {
-            background-color: #2b2f36;
-            color: #f1f1f1;
-            padding: 6px 8px;
-            border: 1px solid #3a3f48;
-        }
-        QFrame#sidebar {
-            background-color: #1f232b;
-        }
-        QPushButton[nav="true"] {
-            background-color: #2b2f36;
-            color: #f1f1f1;
-        }
-        QPushButton[nav="true"]:hover {
-            background-color: #343a46;
-        }
-        QPushButton[nav="true"]:checked {
-            background-color: #2d6cdf;
-            color: #ffffff;
-        }
-        QTableView {
-            selection-background-color: #2d6cdf;
-            selection-color: #ffffff;
-            gridline-color: #3a3f48;
-        }
-        QTableCornerButton::section {
-            background-color: #2b2f36;
-            border: 1px solid #3a3f48;
-        }
-        QMessageBox QLabel {
-            color: #f1f1f1;
-        }
-        QMessageBox QPushButton {
-            background-color: #3b4252;
-            color: #f1f1f1;
-            border: 1px solid #4c566a;
-            padding: 6px 12px;
-            border-radius: 6px;
-        }
-        QMessageBox QPushButton:hover {
-            background-color: #4c566a;
-        }
-        QLineEdit,
-        QTextEdit,
-        QSpinBox,
-        QDoubleSpinBox,
-        QPlainTextEdit {
-            border: 1px solid #4c566a;
-            border-radius: 6px;
-            padding: 6px;
-        }
-        QLineEdit:focus,
-        QTextEdit:focus,
-        QSpinBox:focus,
-        QDoubleSpinBox:focus,
-        QPlainTextEdit:focus {
-            border: 1px solid #7aa2f7;
-        }
-        QLineEdit:disabled,
-        QTextEdit:disabled,
-        QSpinBox:disabled,
-        QDoubleSpinBox:disabled,
-        QPlainTextEdit:disabled {
-            color: #8f98aa;
-        }
-        """
+def _build_dark_palette() -> QtGui.QPalette:
+    palette = QtGui.QPalette()
+    palette.setColor(QtGui.QPalette.Window, QtGui.QColor(32, 34, 40))
+    palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(240, 240, 240))
+    palette.setColor(QtGui.QPalette.Base, QtGui.QColor(24, 26, 31))
+    palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(32, 34, 40))
+    palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor(255, 255, 255))
+    palette.setColor(QtGui.QPalette.ToolTipText, QtGui.QColor(0, 0, 0))
+    palette.setColor(QtGui.QPalette.Text, QtGui.QColor(240, 240, 240))
+    palette.setColor(QtGui.QPalette.Button, QtGui.QColor(45, 48, 58))
+    palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(240, 240, 240))
+    palette.setColor(QtGui.QPalette.BrightText, QtGui.QColor(255, 0, 0))
+    palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor(45, 108, 223))
+    palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor(255, 255, 255))
+    palette.setColor(QtGui.QPalette.PlaceholderText, QtGui.QColor(143, 152, 170))
+    palette.setColor(QtGui.QPalette.Link, QtGui.QColor(89, 160, 255))
+    palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.Text, QtGui.QColor(143, 152, 170))
+    palette.setColor(
+        QtGui.QPalette.Disabled, QtGui.QPalette.ButtonText, QtGui.QColor(143, 152, 170)
+    )
+    palette.setColor(
+        QtGui.QPalette.Disabled, QtGui.QPalette.WindowText, QtGui.QColor(143, 152, 170)
+    )
+    return palette
+
+
+def _dark_stylesheet() -> str:
     return """
-        QHeaderView::section {
-            background-color: #f2f4f8;
-            color: #222222;
-            padding: 6px 8px;
-            border: 1px solid #d7dbe3;
-        }
-        QFrame#sidebar {
-            background-color: #f5f6f8;
-        }
-        QPushButton[nav="true"] {
-            background-color: #ffffff;
-            color: #111827;
-        }
-        QPushButton[nav="true"]:hover {
-            background-color: #e3ecff;
-        }
-        QPushButton[nav="true"]:checked {
-            background-color: #2d6cdf;
-            color: #ffffff;
-        }
-        QTableView {
-            selection-background-color: #2d6cdf;
-            selection-color: #ffffff;
-            gridline-color: #d7dbe3;
-        }
-        QTableCornerButton::section {
-            background-color: #f2f4f8;
-            border: 1px solid #d7dbe3;
-        }
-        QMessageBox QLabel {
-            color: #1f2937;
-        }
-        QMessageBox QPushButton {
-            padding: 6px 12px;
-            border-radius: 6px;
-        }
-        QLineEdit,
-        QTextEdit,
-        QSpinBox,
-        QDoubleSpinBox,
-        QPlainTextEdit {
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 6px;
-        }
-        QLineEdit:focus,
-        QTextEdit:focus,
-        QSpinBox:focus,
-        QDoubleSpinBox:focus,
-        QPlainTextEdit:focus {
-            border: 1px solid #2d6cdf;
-        }
+    QHeaderView::section {
+        background-color: #2b2f36;
+        color: #f1f1f1;
+        padding: 6px 8px;
+        border: 1px solid #3a3f48;
+    }
+    QFrame#sidebar {
+        background-color: #1f232b;
+    }
+    QPushButton[nav="true"] {
+        background-color: #2b2f36;
+        color: #f1f1f1;
+    }
+    QPushButton[nav="true"]:hover {
+        background-color: #343a46;
+    }
+    QPushButton[nav="true"]:checked {
+        background-color: #2d6cdf;
+        color: #ffffff;
+    }
+    QTableView {
+        selection-background-color: #2d6cdf;
+        selection-color: #ffffff;
+        gridline-color: #3a3f48;
+    }
+    QTableCornerButton::section {
+        background-color: #2b2f36;
+        border: 1px solid #3a3f48;
+    }
+    QMessageBox QLabel {
+        color: #f1f1f1;
+    }
+    QMessageBox QPushButton {
+        background-color: #3b4252;
+        color: #f1f1f1;
+        border: 1px solid #4c566a;
+        padding: 6px 12px;
+        border-radius: 6px;
+    }
+    QMessageBox QPushButton:hover {
+        background-color: #4c566a;
+    }
+    QLineEdit,
+    QTextEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QPlainTextEdit {
+        border: 1px solid #4c566a;
+        border-radius: 6px;
+        padding: 6px;
+    }
+    QLineEdit:focus,
+    QTextEdit:focus,
+    QSpinBox:focus,
+    QDoubleSpinBox:focus,
+    QPlainTextEdit:focus {
+        border: 1px solid #7aa2f7;
+    }
+    QLineEdit:disabled,
+    QTextEdit:disabled,
+    QSpinBox:disabled,
+    QDoubleSpinBox:disabled,
+    QPlainTextEdit:disabled {
+        color: #8f98aa;
+    }
     """

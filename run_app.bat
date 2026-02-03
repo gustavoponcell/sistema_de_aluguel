@@ -93,6 +93,7 @@ if errorlevel 1 (
 )
 
 echo [ETAPA] Diagnosticos do ambiente...
+set "PYTHONPATH=%SRC_DIR%"
 python --version
 where python
 pip --version
@@ -131,7 +132,6 @@ echo %REQ_HASH%>"%HASH_FILE%"
 goto :run
 
 :run
-set "PYTHONPATH=%SRC_DIR%"
 python -m rental_manager.app
 if errorlevel 1 (
   echo [ERRO] App falhou. Veja run_app.log
