@@ -23,6 +23,7 @@ from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.main_window import MainWindow
 from rental_manager.utils.backup import export_backup, load_backup_settings
+from rental_manager.utils.theme import apply_theme_from_choice, load_theme_settings
 
 
 def main() -> int:
@@ -48,6 +49,12 @@ def main() -> int:
     app.setApplicationName(config.app_name)
     app.setOrganizationName(config.organization_name)
     app.setOrganizationDomain(config.organization_domain)
+    theme_settings = load_theme_settings(get_config_path())
+    try:
+        apply_theme_from_choice(app, theme_settings.theme)
+    except Exception:
+        logger.exception("Falha ao aplicar tema. Usando tema claro.")
+        apply_theme_from_choice(app, "light")
 
     connection = get_connection(get_db_path())
     services = AppServices(
