@@ -44,6 +44,8 @@ class NewRentalScreen(QtWidgets.QWidget):
 
     def _build_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(18)
+        layout.setContentsMargins(24, 24, 24, 24)
 
         title = QtWidgets.QLabel("Novo Aluguel")
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
@@ -52,15 +54,19 @@ class NewRentalScreen(QtWidgets.QWidget):
             "Inicie um novo aluguel com dados do cliente, datas e itens."
         )
         subtitle.setWordWrap(True)
+        subtitle.setStyleSheet("color: #555; font-size: 14px;")
 
         layout.addWidget(title)
         layout.addWidget(subtitle)
 
         form = QtWidgets.QFormLayout()
+        form.setVerticalSpacing(14)
         customer_row = QtWidgets.QHBoxLayout()
         self.customer_combo = QtWidgets.QComboBox()
         self.customer_combo.setMinimumWidth(240)
+        self.customer_combo.setMinimumHeight(36)
         self.new_customer_button = QtWidgets.QPushButton("Novo Cliente")
+        self.new_customer_button.setMinimumHeight(40)
         self.new_customer_button.clicked.connect(self._on_new_customer)
         customer_row.addWidget(self.customer_combo)
         customer_row.addWidget(self.new_customer_button)
@@ -75,6 +81,8 @@ class NewRentalScreen(QtWidgets.QWidget):
         self.end_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("dd/MM/yyyy")
+        self.start_date_input.dateChanged.connect(self._sync_end_date_min)
+        self._sync_end_date_min(self.start_date_input.date())
 
         dates_row = QtWidgets.QHBoxLayout()
         dates_row.addWidget(QtWidgets.QLabel("Evento"))
@@ -113,6 +121,7 @@ class NewRentalScreen(QtWidgets.QWidget):
         self.unit_price_input.setSingleStep(1.0)
         self.unit_price_input.setPrefix("R$ ")
         self.add_item_button = QtWidgets.QPushButton("Adicionar item")
+        self.add_item_button.setMinimumHeight(40)
         self.add_item_button.clicked.connect(self._on_add_item)
 
         item_form.addWidget(QtWidgets.QLabel("Produto"), 0, 0)
@@ -158,6 +167,8 @@ class NewRentalScreen(QtWidgets.QWidget):
         button_layout = QtWidgets.QHBoxLayout()
         self.save_draft_button = QtWidgets.QPushButton("Salvar como rascunho")
         self.confirm_button = QtWidgets.QPushButton("Confirmar aluguel")
+        self.save_draft_button.setMinimumHeight(44)
+        self.confirm_button.setMinimumHeight(44)
         self.save_draft_button.clicked.connect(self._on_save_draft)
         self.confirm_button.clicked.connect(self._on_confirm_rental)
         button_layout.addWidget(self.save_draft_button)
@@ -166,15 +177,59 @@ class NewRentalScreen(QtWidgets.QWidget):
         layout.addLayout(button_layout)
         layout.addStretch()
 
+        self.setStyleSheet(
+            """
+            QGroupBox {
+                font-weight: 600;
+                margin-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+            QLineEdit, QDateEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit {
+                font-size: 14px;
+                padding: 4px;
+            }
+            QPushButton {
+                font-size: 14px;
+                padding: 8px 14px;
+            }
+            """
+        )
+
+    def _show_warning(self, message: str) -> None:
+        QtWidgets.QMessageBox.warning(self, "Atenção", message)
+
+    def _show_error(self, message: str) -> None:
+        QtWidgets.QMessageBox.critical(self, "Erro", message)
+
+    def _show_success(self, message: str) -> None:
+        QtWidgets.QMessageBox.information(self, "Sucesso", message)
+
+    def _confirm_action(self, message: str) -> bool:
+        response = QtWidgets.QMessageBox.question(
+            self,
+            "Confirmação",
+            message,
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        )
+        return response == QtWidgets.QMessageBox.Yes
+
+    def _sync_end_date_min(self, new_start_date: QtCore.QDate) -> None:
+        self.end_date_input.setMinimumDate(new_start_date)
+        if self.end_date_input.date() < new_start_date:
+            self.end_date_input.setDate(new_start_date)
+
     def _load_customers(self) -> None:
         try:
             customers = self._services.customer_repo.list_all()
         except Exception:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Erro",
-                "Não foi possível carregar os clientes.",
-            )
+            self._show_error("Não foi possível carregar os clientes.")
             return
         self._customers = customers
         self.customer_combo.blockSignals(True)
@@ -188,11 +243,7 @@ class NewRentalScreen(QtWidgets.QWidget):
         try:
             products = self._services.product_repo.list_active()
         except Exception:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Erro",
-                "Não foi possível carregar os produtos.",
-            )
+            self._show_error("Não foi possível carregar os produtos.")
             return
         self._products = products
         self.product_combo.blockSignals(True)
@@ -238,10 +289,8 @@ class NewRentalScreen(QtWidgets.QWidget):
                 notes=data["notes"],
             )
         except Exception:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Erro",
-                "Não foi possível salvar o cliente. Verifique os dados e tente novamente.",
+            self._show_error(
+                "Não foi possível salvar o cliente. Verifique os dados e tente novamente."
             )
             return
         self._load_customers()
@@ -255,27 +304,15 @@ class NewRentalScreen(QtWidgets.QWidget):
             return
         product = self._get_selected_product()
         if not product or product.id is None:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "Selecione um produto para adicionar.",
-            )
+            self._show_warning("Selecione um produto para adicionar.")
             return
         qty = int(self.qty_input.value())
         unit_price = float(self.unit_price_input.value())
         if qty <= 0:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "Informe uma quantidade maior que zero.",
-            )
+            self._show_warning("Informe uma quantidade maior que zero.")
             return
         if unit_price <= 0:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "Informe um preço unitário válido.",
-            )
+            self._show_warning("Informe um preço unitário válido.")
             return
         updated_items = self._prepare_updated_items(
             product_id=product.id,
@@ -341,6 +378,7 @@ class NewRentalScreen(QtWidgets.QWidget):
             action_widget = QtWidgets.QWidget()
             action_layout = QtWidgets.QHBoxLayout(action_widget)
             action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(8)
             edit_button = QtWidgets.QPushButton("Editar")
             remove_button = QtWidgets.QPushButton("Remover")
             edit_button.clicked.connect(lambda _, idx=row: self._on_edit_item(idx))
@@ -391,30 +429,20 @@ class NewRentalScreen(QtWidgets.QWidget):
     def _validate_dates(self) -> bool:
         _event_date, start_date, end_date = self._get_dates()
         if start_date > end_date:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "A data de início não pode ser maior que a data de fim.",
+            self._show_warning(
+                "A data de término não pode ser anterior à data de início."
             )
             return False
         return True
 
     def _validate_form(self) -> bool:
         if not self._get_selected_customer_id():
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "Selecione um cliente para o aluguel.",
-            )
+            self._show_warning("Selecione um cliente para o aluguel.")
             return False
         if not self._validate_dates():
             return False
         if not self._items:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                "Adicione ao menos um item ao aluguel.",
-            )
+            self._show_warning("Adicione ao menos um item ao aluguel.")
             return False
         return True
 
@@ -428,11 +456,7 @@ class NewRentalScreen(QtWidgets.QWidget):
                 end_date.isoformat(),
             )
         except ValueError as exc:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Estoque insuficiente",
-                str(exc),
-            )
+            self._show_warning(str(exc))
             return False
         return True
 
@@ -463,6 +487,10 @@ class NewRentalScreen(QtWidgets.QWidget):
         event_date, start_date, end_date = self._get_dates()
         items_payload = self._build_items_payload()
         total_value = sum(item.line_total for item in self._items)
+        if total_value <= 0 and not self._confirm_action(
+            "O total do aluguel está R$ 0,00. Deseja continuar mesmo assim?"
+        ):
+            return False
         try:
             rental = self._services.rental_service.create_draft_rental(
                 customer_id=customer_id,
@@ -476,17 +504,11 @@ class NewRentalScreen(QtWidgets.QWidget):
             if confirm and rental.id:
                 self._services.rental_service.confirm_rental(rental.id)
         except ValidationError as exc:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Validação",
-                str(exc),
-            )
+            self._show_warning(str(exc))
             return False
         except Exception:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Erro",
-                "Não foi possível salvar o aluguel. Verifique os dados e tente novamente.",
+            self._show_error(
+                "Não foi possível salvar o aluguel. Verifique os dados e tente novamente."
             )
             return False
         return True
@@ -494,21 +516,13 @@ class NewRentalScreen(QtWidgets.QWidget):
     def _on_save_draft(self) -> None:
         if not self._save_rental(confirm=False):
             return
-        QtWidgets.QMessageBox.information(
-            self,
-            "Sucesso",
-            "Aluguel salvo como rascunho.",
-        )
+        self._show_success("Aluguel salvo como rascunho.")
         self._clear_form()
 
     def _on_confirm_rental(self) -> None:
         if not self._save_rental(confirm=True):
             return
-        QtWidgets.QMessageBox.information(
-            self,
-            "Sucesso",
-            "Aluguel confirmado com sucesso.",
-        )
+        self._show_success("Aluguel confirmado com sucesso.")
         self._clear_form()
 
     def _clear_form(self) -> None:
@@ -517,6 +531,7 @@ class NewRentalScreen(QtWidgets.QWidget):
         self.event_date_input.setDate(today)
         self.start_date_input.setDate(today)
         self.end_date_input.setDate(today)
+        self._sync_end_date_min(today)
         self.address_input.clear()
         self.product_combo.setCurrentIndex(0)
         self.qty_input.setValue(1)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date
 from typing import Iterable, Optional
 
 from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, RentalStatus
@@ -57,6 +58,19 @@ class RentalService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+    def _validate_date_order(self, start_date: str, end_date: str) -> None:
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+        except ValueError as exc:
+            raise ValidationError(
+                "Datas inválidas. Verifique o início e o fim do aluguel."
+            ) from exc
+        if end < start:
+            raise ValidationError(
+                "A data de término não pode ser anterior à data de início."
+            )
+
     def create_draft_rental(
         self,
         customer_id: int,
@@ -68,6 +82,7 @@ class RentalService:
         total_value: Optional[float] = None,
         paid_value: float = 0.0,
     ) -> Rental:
+        self._validate_date_order(start_date, end_date)
         items_for_validation = self._items_for_validation(items)
         self._validate_inventory(items_for_validation, start_date, end_date)
         return rental_repo.create_rental(
@@ -96,6 +111,7 @@ class RentalService:
         paid_value: float,
         status: str | RentalStatus,
     ) -> Rental:
+        self._validate_date_order(start_date, end_date)
         items_for_validation = self._items_for_validation(items)
         self._validate_inventory(
             items_for_validation,
