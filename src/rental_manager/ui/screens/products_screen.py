@@ -175,9 +175,9 @@ class ProductsScreen(BaseScreen):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
-        self.table = QtWidgets.QTableWidget(0, 6)
+        self.table = QtWidgets.QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(
-            ["Nome", "Categoria", "Total", "Na rua", "Comigo", "Preço padrão"]
+            ["Produto", "Total", "Na rua", "Comigo"]
         )
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -186,11 +186,9 @@ class ProductsScreen(BaseScreen):
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:
@@ -223,29 +221,20 @@ class ProductsScreen(BaseScreen):
         reference_date = self.reference_date_input.date().toPython()
         self.table.setRowCount(len(products))
         for row, product in enumerate(products):
-            reserved_qty = self._services.inventory_service.get_reserved_qty_on_date(
+            reserved_qty = self._services.inventory_service.on_loan(
                 product.id or 0, reference_date
             )
-            available_qty = max(product.total_qty - reserved_qty, 0)
+            available_qty = self._services.inventory_service.available(
+                product.id or 0, reference_date
+            )
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(product.name))
             self.table.setItem(
                 row,
                 1,
-                QtWidgets.QTableWidgetItem(product.category or ""),
-            )
-            self.table.setItem(
-                row,
-                2,
                 QtWidgets.QTableWidgetItem(str(product.total_qty)),
             )
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(reserved_qty)))
-            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(available_qty)))
-            price_text = "—"
-            if product.unit_price is not None:
-                price_text = f"R$ {product.unit_price:,.2f}".replace(",", "X").replace(
-                    ".", ","
-                ).replace("X", ".")
-            self.table.setItem(row, 5, QtWidgets.QTableWidgetItem(price_text))
+            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(reserved_qty)))
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(available_qty)))
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
         self._on_selection_changed()
