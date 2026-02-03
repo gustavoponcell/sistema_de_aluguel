@@ -8,6 +8,7 @@ APP_NAME = "RentalManager"
 APP_DATA_DIRNAME = APP_NAME
 DB_FILENAME = "rental_manager.db"
 BACKUP_DIRNAME = "backups"
+BACKUP_RETENTION_COUNT = 30
 LOGS_DIRNAME = "logs"
 LOG_FILENAME = "app.log"
 LOG_MAX_BYTES = 1_000_000

@@ -421,6 +421,8 @@ start_date <= D < end_date
 
 **Regras**
 - A restauração pede confirmação extra com o texto “RESTAURAR”.
+- Antes de restaurar, o sistema cria um **backup de segurança** do banco atual.
+- Após restaurar, roda **PRAGMA integrity_check** e registra o resultado.
 - Após restaurar, o app é fechado para reinicialização segura.
 
 ---
@@ -462,18 +464,23 @@ start_date <= D < end_date
 
 ### 8.1 Estratégia de backup
 - **Manual** pela tela de backup.
-- **Automático ao iniciar** (opcional, via checkbox). 
+- **Automático ao iniciar** (opcional, via checkbox).
+- **Retenção automática**: mantém somente os últimos 30 backups e remove os mais antigos.
 
 ### 8.2 Onde salva
 - `%APPDATA%\RentalManager\backups`.
 - Nome: `rental_manager_YYYYMMDD_HHMMSS.db`.
+- Backup de segurança antes da restauração: `rental_manager_YYYYMMDD_HHMMSS_pre_restore.db`.
 
 ### 8.3 Restauração (passo a passo)
 1. Abra a tela **Backup**.
 2. Selecione um arquivo da lista.
 3. Clique em **Restaurar**.
 4. Digite **RESTAURAR** para confirmar.
-5. O app fechará para concluir a restauração.
+5. O sistema cria um backup de segurança do banco atual.
+6. O backup selecionado é restaurado.
+7. O sistema roda `PRAGMA integrity_check` e informa o resultado na tela.
+8. O app fechará para concluir a restauração.
 
 ### 8.4 Considerações de segurança
 - Sem login → qualquer pessoa com acesso ao PC pode ver dados.
