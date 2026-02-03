@@ -29,5 +29,54 @@ O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`
 
 ## Build com PyInstaller
 
-O processo de build com PyInstaller será detalhado em breve. A ideia é gerar um executável
-na pasta `dist/` com todos os recursos necessários para uso offline.
+### Pré-requisitos
+
+1) Instale as dependências do projeto:
+
+```bash
+pip install -r requirements.txt
+```
+
+2) Instale o PyInstaller:
+
+```bash
+pip install pyinstaller
+```
+
+### Comando de build (Windows)
+
+Use o script PowerShell já configurado:
+
+```powershell
+.\build_windows.ps1
+```
+
+O script gera automaticamente um ícone mínimo em `assets\icon.ico` caso o arquivo não exista.
+Para personalizar, substitua o ícone por um `.ico` próprio.
+
+Ou execute o comando diretamente:
+
+```powershell
+pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/app.py
+```
+
+### Onde fica o executável
+
+O executável principal será gerado em:
+
+```
+dist\RentalManager\RentalManager.exe
+```
+
+### Como instalar (uso offline)
+
+1) Copie a pasta inteira `dist\RentalManager` para o computador de destino.
+2) Execute `RentalManager.exe` diretamente (não requer instalação).
+
+### Checklist pós-build
+
+- Abrir o executável e confirmar que não aparece console.
+- Confirmar criação do banco em `%APPDATA%\RentalManager\rental_manager.db`.
+- Confirmar criação de logs em `%APPDATA%\RentalManager\logs\`.
+- Criar um aluguel de teste e gerar PDF em `%APPDATA%\RentalManager\pdfs\`.
+- Executar backup e verificar arquivo em `%APPDATA%\RentalManager\backups\`.
