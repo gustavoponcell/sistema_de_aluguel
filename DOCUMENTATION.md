@@ -186,7 +186,15 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `line_total` (REAL)
 - `created_at`, `updated_at`
 
-> **Não há** tabelas dedicadas para pagamentos, contratos ou recibos.
+#### `payments`
+- `id` (PK)
+- `rental_id` (FK → rentals.id)
+- `amount` (REAL)
+- `method` (TEXT)
+- `paid_at` (TEXT ISO)
+- `note` (TEXT)
+
+> Pagamentos ficam registrados em `payments` e o campo `rentals.paid_value` é derivado da soma dos pagamentos.
 
 ### 4.4 Índices
 - `idx_rentals_event_date`
@@ -203,6 +211,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
   - `products.total_qty >= 0` e `products.unit_price >= 0` (ou nulo).
   - `rental_items.qty > 0`.
   - `rentals.total_value >= 0` e `rentals.paid_value >= 0`.
+  - `payments.amount > 0`.
   - `rentals.end_date > rentals.start_date`.
   - `rentals.status` limitado aos valores reais do app (`draft`, `confirmed`, `canceled`, `completed`).
 
@@ -221,20 +230,24 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - **draft** e **canceled** não bloqueiam.
 
 ### 5.2 Pagamento
-- `unpaid` → **Não pago**
+- `unpaid` → **Pendente**
 - `partial` → **Parcial**
 - `paid` → **Pago**
 
 **Cálculo do status de pagamento**
-- `paid_value <= 0` → `unpaid`
-- `0 < paid_value < total_value` → `partial`
-- `paid_value >= total_value` → `paid`
+- O total pago do aluguel é a **soma dos registros em `payments`**.
+- `paid_value` em `rentals` é um campo derivado (atualizado ao inserir/editar/excluir pagamentos).
+- Regras:
+  - `paid_total <= 0` → `unpaid`
+  - `0 < paid_total < total_value` → `partial`
+  - `paid_total >= total_value` → `paid`
 
 ### 5.3 Cálculo financeiro
 **Relatório financeiro por período**:
-- A consulta usa `event_date` como referência de período.
-- **Total recebido**: soma de `paid_value` apenas quando `payment_status` é `partial` ou `paid`.
-- **Total a receber**: soma de `total_value - paid_value` quando `payment_status` é `unpaid` ou `partial`.
+- A lista de aluguéis usa `event_date` como referência do período.
+- **Total recebido**: soma dos pagamentos em `payments` cujo `paid_at` está dentro do período.
+  - Pagamentos sem `paid_at` não entram no total recebido do período.
+- **Total a receber**: soma de `(total_value - paid_total)` **apenas para aluguéis `confirmed`** no período.
 - Aluguéis com status `canceled` **não entram** no relatório.
 
 ### 5.4 Estoque por data (crítico)
@@ -318,9 +331,10 @@ start_date <= D < end_date
 
 **Ações e comportamento**
 - **Editar**: abre diálogo para alterar datas e itens (revalida estoque).
+- **Detalhes/Editar**: seção **Pagamentos** permite adicionar, editar e excluir pagamentos com confirmação.
 - **Cancelar**: muda status para `canceled` (não bloqueia estoque).
 - **Concluir**: muda status para `completed`.
-- **Registrar pagamento**: define `paid_value`.
+- **Registrar pagamento**: adiciona um registro em `payments` e recalcula o total pago.
 - **Gerar PDF**: contrato ou recibo.
 
 **Validações e mensagens**
@@ -528,7 +542,6 @@ start_date <= D < end_date
 
 - Tela de **Configurações** dedicada (hoje só há tema no menu e backup na tela própria).
 - Migrações futuras além das básicas (apenas constraints e versionamento simples já existem).
-- **Tabela de pagamentos** separada (pagamento fica em campos da tabela `rentals`).
 - **Exportações adicionais** (além do CSV financeiro).
 - **Calendário** visual (existe apenas lista/agenda).
 - **Alertas** ou notificações automáticas.

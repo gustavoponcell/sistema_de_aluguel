@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from types import SimpleNamespace
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from rental_manager.domain.models import (
     Customer,
+    Payment,
     PaymentStatus,
     Rental,
     RentalItem,
@@ -35,6 +36,18 @@ def _format_date(value: str) -> str:
     return parsed.toString("dd/MM/yyyy") if parsed.isValid() else value
 
 
+def _format_datetime(value: Optional[str]) -> str:
+    if not value:
+        return "—"
+    parsed = QtCore.QDateTime.fromString(value, "yyyy-MM-ddTHH:mm:ss")
+    if not parsed.isValid():
+        parsed = QtCore.QDateTime.fromString(value, "yyyy-MM-dd HH:mm:ss")
+    if parsed.isValid():
+        return parsed.toString("dd/MM/yyyy HH:mm")
+    parsed_date = QtCore.QDate.fromString(value, "yyyy-MM-dd")
+    return parsed_date.toString("dd/MM/yyyy") if parsed_date.isValid() else value
+
+
 def _summarize_address(address: Optional[str], max_len: int = 42) -> str:
     if not address:
         return "—"
@@ -54,7 +67,7 @@ def _status_label(status: RentalStatus) -> str:
 
 def _payment_label(status: PaymentStatus) -> str:
     mapping = {
-        PaymentStatus.UNPAID: "Não pago",
+        PaymentStatus.UNPAID: "Pendente",
         PaymentStatus.PARTIAL: "Parcial",
         PaymentStatus.PAID: "Pago",
     }
@@ -157,15 +170,17 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         info_layout.addRow(
             "Status:", QtWidgets.QLabel(_status_label(self._rental.status))
         )
-        info_layout.addRow(
-            "Pagamento:", QtWidgets.QLabel(_payment_label(self._rental.payment_status))
+        self._payment_status_label = QtWidgets.QLabel(
+            _payment_label(self._rental.payment_status)
         )
+        info_layout.addRow("Pagamento:", self._payment_status_label)
         info_layout.addRow(
             "Total:", QtWidgets.QLabel(_format_currency(self._rental.total_value))
         )
-        info_layout.addRow(
-            "Pago:", QtWidgets.QLabel(_format_currency(self._rental.paid_value))
+        self._paid_value_label = QtWidgets.QLabel(
+            _format_currency(self._rental.paid_value)
         )
+        info_layout.addRow("Pago:", self._paid_value_label)
         info_layout.addRow(
             "Endereço:",
             QtWidgets.QLabel(self._rental.address or "—"),
@@ -207,41 +222,97 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         items_layout.addWidget(items_table)
         layout.addWidget(items_group)
 
+        payments_section = PaymentsSection(
+            self._services,
+            rental_id=self._rental_id,
+            on_change=self._refresh_payment_summary,
+        )
+        layout.addWidget(payments_section)
+
         button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+    def _refresh_payment_summary(self) -> None:
+        try:
+            rental_data = rental_repo.get_rental_with_items(
+                self._rental_id, connection=self._services.connection
+            )
+        except Exception:
+            rental_data = None
+        if not rental_data:
+            return
+        self._rental, _items = rental_data
+        self._payment_status_label.setText(
+            _payment_label(self._rental.payment_status)
+        )
+        self._paid_value_label.setText(_format_currency(self._rental.paid_value))
 
-class PaymentDialog(QtWidgets.QDialog):
-    """Dialog to register payment for a rental."""
 
-    def __init__(self, total_value: float, paid_value: float) -> None:
+class PaymentEntryDialog(QtWidgets.QDialog):
+    """Dialog to create or edit a payment entry."""
+
+    def __init__(self, title: str, payment: Optional[Payment] = None) -> None:
         super().__init__()
-        self._total_value = total_value
-        self._paid_value = paid_value
-        self.setWindowTitle("Registrar pagamento")
+        self._payment = payment
+        self.setWindowTitle(title)
         self.setModal(True)
         self._build_ui()
 
     def _build_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)
-        summary = QtWidgets.QLabel(
-            f"Total do aluguel: {_format_currency(self._total_value)}"
-        )
-        layout.addWidget(summary)
 
         form = QtWidgets.QFormLayout()
-        self.value_input = QtWidgets.QDoubleSpinBox()
-        self.value_input.setRange(0.0, max(self._total_value, 0.0))
-        self.value_input.setDecimals(2)
-        self.value_input.setPrefix("R$ ")
-        self.value_input.setValue(self._paid_value)
-        self.full_paid_check = QtWidgets.QCheckBox("Marcar como pago total")
-        self.full_paid_check.setChecked(self._paid_value >= self._total_value)
-        self.full_paid_check.toggled.connect(self._on_toggle_full_payment)
+        self.amount_input = QtWidgets.QDoubleSpinBox()
+        self.amount_input.setRange(0.0, 1_000_000.0)
+        self.amount_input.setDecimals(2)
+        self.amount_input.setPrefix("R$ ")
+        self.amount_input.setValue(self._payment.amount if self._payment else 0.0)
 
-        form.addRow("Valor pago:", self.value_input)
-        form.addRow("", self.full_paid_check)
+        self.method_input = QtWidgets.QLineEdit()
+        self.method_input.setPlaceholderText("Dinheiro, PIX, cartão...")
+        if self._payment and self._payment.method:
+            self.method_input.setText(self._payment.method)
+
+        self.paid_at_check = QtWidgets.QCheckBox("Definir data/hora")
+        self.paid_at_input = QtWidgets.QDateTimeEdit()
+        self.paid_at_input.setCalendarPopup(True)
+        self.paid_at_input.setDisplayFormat("dd/MM/yyyy HH:mm")
+        self.paid_at_input.setDateTime(QtCore.QDateTime.currentDateTime())
+        if self._payment and self._payment.paid_at:
+            parsed = QtCore.QDateTime.fromString(
+                self._payment.paid_at, "yyyy-MM-ddTHH:mm:ss"
+            )
+            if not parsed.isValid():
+                parsed = QtCore.QDateTime.fromString(
+                    self._payment.paid_at, "yyyy-MM-dd HH:mm:ss"
+                )
+            if not parsed.isValid():
+                parsed_date = QtCore.QDate.fromString(
+                    self._payment.paid_at, "yyyy-MM-dd"
+                )
+                if parsed_date.isValid():
+                    parsed = QtCore.QDateTime(parsed_date, QtCore.QTime(0, 0))
+            if parsed.isValid():
+                self.paid_at_input.setDateTime(parsed)
+        if self._payment and not self._payment.paid_at:
+            self.paid_at_check.setChecked(False)
+        else:
+            self.paid_at_check.setChecked(True)
+        self.paid_at_input.setEnabled(self.paid_at_check.isChecked())
+        self.paid_at_check.toggled.connect(self.paid_at_input.setEnabled)
+
+        self.note_input = QtWidgets.QPlainTextEdit()
+        self.note_input.setPlaceholderText("Observações sobre o pagamento")
+        self.note_input.setFixedHeight(80)
+        if self._payment and self._payment.note:
+            self.note_input.setPlainText(self._payment.note)
+
+        form.addRow("Valor:", self.amount_input)
+        form.addRow("Método:", self.method_input)
+        form.addRow("", self.paid_at_check)
+        form.addRow("Data/hora:", self.paid_at_input)
+        form.addRow("Observação:", self.note_input)
         layout.addLayout(form)
 
         button_box = QtWidgets.QDialogButtonBox(
@@ -251,21 +322,178 @@ class PaymentDialog(QtWidgets.QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-        self._on_toggle_full_payment(self.full_paid_check.isChecked())
-
-    def _on_toggle_full_payment(self, checked: bool) -> None:
-        if checked:
-            self.value_input.setValue(self._total_value)
-        self.value_input.setEnabled(not checked)
-
     def _on_accept(self) -> None:
-        if self.value_input.value() < 0:
-            _show_warning(self, "Informe um valor pago válido.")
+        if self.amount_input.value() <= 0:
+            _show_warning(self, "Informe um valor maior que zero.")
             return
         self.accept()
 
-    def get_paid_value(self) -> float:
-        return float(self.value_input.value())
+    def get_payment_data(self) -> dict[str, Optional[str] | float]:
+        paid_at = None
+        if self.paid_at_check.isChecked():
+            paid_at = self.paid_at_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
+        note = self.note_input.toPlainText().strip() or None
+        method = self.method_input.text().strip() or None
+        return {
+            "amount": float(self.amount_input.value()),
+            "method": method,
+            "paid_at": paid_at,
+            "note": note,
+        }
+
+
+class PaymentsSection(QtWidgets.QGroupBox):
+    """Widget section to manage payments for a rental."""
+
+    def __init__(
+        self,
+        services: AppServices,
+        rental_id: int,
+        on_change: Optional[Callable[[], None]] = None,
+    ) -> None:
+        super().__init__("Pagamentos")
+        self._services = services
+        self._rental_id = rental_id
+        self._on_change = on_change
+        self._payments: list[Payment] = []
+        self._build_ui()
+        self._load_payments()
+
+    def _build_ui(self) -> None:
+        layout = QtWidgets.QVBoxLayout(self)
+
+        actions_layout = QtWidgets.QHBoxLayout()
+        add_button = QtWidgets.QPushButton("Adicionar pagamento")
+        add_button.clicked.connect(self._on_add_payment)
+        actions_layout.addWidget(add_button)
+        actions_layout.addStretch()
+        layout.addLayout(actions_layout)
+
+        self._table = QtWidgets.QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(
+            ["Data/hora", "Valor", "Método", "Observação", "Ações"]
+        )
+        self._table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        self._table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self._table.verticalHeader().setVisible(False)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        layout.addWidget(self._table)
+
+    def _load_payments(self) -> None:
+        try:
+            self._payments = self._services.payment_service.list_payments(
+                self._rental_id
+            )
+        except Exception:
+            _show_error(self, "Não foi possível carregar os pagamentos.")
+            return
+
+        self._table.setRowCount(0)
+        for row_index, payment in enumerate(self._payments):
+            self._table.insertRow(row_index)
+            self._table.setItem(
+                row_index, 0, QtWidgets.QTableWidgetItem(_format_datetime(payment.paid_at))
+            )
+            self._table.setItem(
+                row_index,
+                1,
+                QtWidgets.QTableWidgetItem(_format_currency(payment.amount)),
+            )
+            self._table.setItem(
+                row_index,
+                2,
+                QtWidgets.QTableWidgetItem(payment.method or "—"),
+            )
+            self._table.setItem(
+                row_index,
+                3,
+                QtWidgets.QTableWidgetItem(payment.note or "—"),
+            )
+            self._table.setCellWidget(
+                row_index, 4, self._build_actions_widget(payment)
+            )
+        self._table.resizeRowsToContents()
+
+    def _build_actions_widget(self, payment: Payment) -> QtWidgets.QWidget:
+        actions = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(actions)
+        layout.setContentsMargins(0, 0, 0, 0)
+        edit_button = QtWidgets.QPushButton("Editar")
+        delete_button = QtWidgets.QPushButton("Excluir")
+        edit_button.clicked.connect(
+            lambda _checked=False, pid=payment.id: self._on_edit_payment(pid)
+        )
+        delete_button.clicked.connect(
+            lambda _checked=False, pid=payment.id: self._on_delete_payment(pid)
+        )
+        layout.addWidget(edit_button)
+        layout.addWidget(delete_button)
+        return actions
+
+    def _on_add_payment(self) -> None:
+        dialog = PaymentEntryDialog("Adicionar pagamento")
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        data = dialog.get_payment_data()
+        try:
+            self._services.payment_service.add_payment(
+                rental_id=self._rental_id,
+                amount=float(data["amount"]),
+                method=data["method"],
+                paid_at=data["paid_at"],
+                note=data["note"],
+            )
+        except Exception as exc:
+            _show_error(self, str(exc))
+            return
+        self._notify_change()
+
+    def _on_edit_payment(self, payment_id: Optional[int]) -> None:
+        if payment_id is None:
+            return
+        payment = next((item for item in self._payments if item.id == payment_id), None)
+        if not payment:
+            _show_warning(self, "Pagamento não encontrado para edição.")
+            return
+        dialog = PaymentEntryDialog("Editar pagamento", payment=payment)
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+        data = dialog.get_payment_data()
+        try:
+            self._services.payment_service.update_payment(
+                payment_id=payment_id,
+                amount=float(data["amount"]),
+                method=data["method"],
+                paid_at=data["paid_at"],
+                note=data["note"],
+            )
+        except Exception as exc:
+            _show_error(self, str(exc))
+            return
+        self._notify_change()
+
+    def _on_delete_payment(self, payment_id: Optional[int]) -> None:
+        if payment_id is None:
+            return
+        if not _confirm_action(self, "Excluir este pagamento?"):
+            return
+        try:
+            self._services.payment_service.delete_payment(payment_id)
+        except Exception as exc:
+            _show_error(self, str(exc))
+            return
+        self._notify_change()
+
+    def _notify_change(self) -> None:
+        self._load_payments()
+        self._services.data_bus.data_changed.emit()
+        if self._on_change:
+            self._on_change()
 
 
 class RentalEditDialog(QtWidgets.QDialog):
@@ -427,6 +655,13 @@ class RentalEditDialog(QtWidgets.QDialog):
 
         layout.addWidget(items_group)
 
+        payments_section = PaymentsSection(
+            self._services,
+            rental_id=self._rental_id,
+            on_change=self._refresh_rental_payment,
+        )
+        layout.addWidget(payments_section)
+
         button_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel
         )
@@ -458,6 +693,16 @@ class RentalEditDialog(QtWidgets.QDialog):
             }
             """
         )
+
+    def _refresh_rental_payment(self) -> None:
+        try:
+            rental_data = rental_repo.get_rental_with_items(
+                self._rental_id, connection=self._services.connection
+            )
+        except Exception:
+            return
+        if rental_data:
+            self._rental, _items = rental_data
 
     def _load_customers(self) -> None:
         try:
@@ -705,7 +950,6 @@ class RentalEditDialog(QtWidgets.QDialog):
                 address=self.address_input.toPlainText().strip() or None,
                 items=items_payload,
                 total_value=total_value,
-                paid_value=self._rental.paid_value,
                 status=self._rental.status,
             )
         except ValidationError as exc:
@@ -788,7 +1032,7 @@ class RentalsScreen(BaseScreen):
 
         self.payment_combo = QtWidgets.QComboBox()
         self.payment_combo.addItem("Todos", None)
-        self.payment_combo.addItem("Não pago", PaymentStatus.UNPAID)
+        self.payment_combo.addItem("Pendente", PaymentStatus.UNPAID)
         self.payment_combo.addItem("Parcial", PaymentStatus.PARTIAL)
         self.payment_combo.addItem("Pago", PaymentStatus.PAID)
 
@@ -1136,13 +1380,17 @@ class RentalsScreen(BaseScreen):
         rental = self._get_selected_rental()
         if not rental or not rental.id:
             return
-        dialog = PaymentDialog(rental.total_value, rental.paid_value)
+        dialog = PaymentEntryDialog("Registrar pagamento")
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
+        data = dialog.get_payment_data()
         try:
-            self._services.rental_service.set_payment(
+            self._services.payment_service.add_payment(
                 rental_id=rental.id,
-                paid_value=dialog.get_paid_value(),
+                amount=float(data["amount"]),
+                method=data["method"],
+                paid_at=data["paid_at"],
+                note=data["note"],
             )
         except Exception:
             _show_error(self, "Não foi possível registrar o pagamento. Tente novamente.")

@@ -347,7 +347,7 @@ def _status_label(status: RentalStatus) -> str:
 
 def _payment_label(status: PaymentStatus) -> str:
     mapping = {
-        PaymentStatus.UNPAID: "Não pago",
+        PaymentStatus.UNPAID: "Pendente",
         PaymentStatus.PARTIAL: "Parcial",
         PaymentStatus.PAID: "Pago",
     }

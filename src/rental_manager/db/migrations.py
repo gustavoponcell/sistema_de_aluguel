@@ -202,6 +202,35 @@ MIGRATIONS: list[Migration] = [
             ON rental_items(product_id);
         """,
     ),
+    Migration(
+        version=3,
+        script="""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rental_id INTEGER NOT NULL,
+            amount REAL NOT NULL CHECK (amount > 0),
+            method TEXT,
+            paid_at TEXT,
+            note TEXT,
+            FOREIGN KEY (rental_id) REFERENCES rentals(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_payments_rental_id
+            ON payments(rental_id);
+        CREATE INDEX IF NOT EXISTS idx_payments_paid_at
+            ON payments(paid_at);
+
+        INSERT INTO payments (rental_id, amount, method, paid_at, note)
+        SELECT
+            id,
+            paid_value,
+            'Migrado',
+            COALESCE(updated_at, event_date),
+            'Pagamento migrado do campo paid_value'
+        FROM rentals
+        WHERE paid_value > 0;
+        """,
+    ),
 ]
 
 

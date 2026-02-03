@@ -367,43 +367,51 @@ def get_finance_report_by_period(
 ) -> FinanceReport:
     """Return aggregate finance totals for the given event date period."""
     logger = get_logger("rental_repo")
-    query = """
-        SELECT
-            COALESCE(SUM(
-                CASE
-                    WHEN r.payment_status IN ('partial', 'paid') THEN r.paid_value
-                    ELSE 0
-                END
-            ), 0) AS total_received,
-            COALESCE(SUM(
-                CASE
-                    WHEN r.payment_status IN ('unpaid', 'partial')
-                    THEN CASE
-                        WHEN (r.total_value - r.paid_value) > 0
-                        THEN (r.total_value - r.paid_value)
-                        ELSE 0
-                    END
-                    ELSE 0
-                END
-            ), 0) AS total_to_receive,
-            COUNT(*) AS rentals_count
-        FROM rentals r
-        WHERE r.event_date >= ?
-          AND r.event_date <= ?
-          AND r.status != 'canceled'
-    """
     try:
         with _optional_connection(connection) as conn:
-            row = conn.execute(query, (start_date, end_date)).fetchone()
+            received_row = conn.execute(
+                """
+                SELECT COALESCE(SUM(amount), 0) AS total_received
+                FROM payments
+                WHERE paid_at IS NOT NULL
+                  AND date(paid_at) >= ?
+                  AND date(paid_at) <= ?
+                """,
+                (start_date, end_date),
+            ).fetchone()
+            totals_row = conn.execute(
+                """
+                SELECT
+                    COALESCE(SUM(
+                        CASE
+                            WHEN r.status = 'confirmed'
+                            THEN CASE
+                                WHEN (r.total_value - r.paid_value) > 0
+                                THEN (r.total_value - r.paid_value)
+                                ELSE 0
+                            END
+                            ELSE 0
+                        END
+                    ), 0) AS total_to_receive,
+                    COUNT(*) AS rentals_count
+                FROM rentals r
+                WHERE r.event_date >= ?
+                  AND r.event_date <= ?
+                  AND r.status != 'canceled'
+                """,
+                (start_date, end_date),
+            ).fetchone()
     except Exception:
         logger.exception("Failed to build finance report")
         raise
-    if not row:
+    if not totals_row:
         return FinanceReport(total_received=0.0, total_to_receive=0.0, rentals_count=0)
     return FinanceReport(
-        total_received=float(row["total_received"] or 0),
-        total_to_receive=float(row["total_to_receive"] or 0),
-        rentals_count=int(row["rentals_count"] or 0),
+        total_received=float(received_row["total_received"] or 0)
+        if received_row
+        else 0.0,
+        total_to_receive=float(totals_row["total_to_receive"] or 0),
+        rentals_count=int(totals_row["rentals_count"] or 0),
     )
 
 

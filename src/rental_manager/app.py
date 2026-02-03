@@ -19,6 +19,7 @@ from rental_manager.paths import (
 )
 from rental_manager.repositories import CustomerRepo, ProductRepo
 from rental_manager.services.inventory_service import InventoryService
+from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.data_bus import DataEventBus
@@ -62,6 +63,7 @@ def main() -> int:
         product_repo=ProductRepo(connection),
         inventory_service=InventoryService(connection),
         rental_service=RentalService(connection),
+        payment_service=PaymentService(connection),
     )
 
     window = MainWindow(services)
