@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from rental_manager.domain.models import (
     Customer,
+    Payment,
     PaymentStatus,
     Product,
     Rental,
@@ -124,4 +125,26 @@ def rental_item_to_record(rental_item: RentalItem) -> Dict[str, Any]:
         "line_total": rental_item.line_total,
         "created_at": rental_item.created_at,
         "updated_at": rental_item.updated_at,
+    }
+
+
+def payment_from_row(row: sqlite3.Row) -> Payment:
+    return Payment(
+        id=_row_value(row, "id"),
+        rental_id=row["rental_id"],
+        amount=row["amount"],
+        method=_row_value(row, "method"),
+        paid_at=_row_value(row, "paid_at"),
+        note=_row_value(row, "note"),
+    )
+
+
+def payment_to_record(payment: Payment) -> Dict[str, Any]:
+    return {
+        "id": payment.id,
+        "rental_id": payment.rental_id,
+        "amount": payment.amount,
+        "method": payment.method,
+        "paid_at": payment.paid_at,
+        "note": payment.note,
     }

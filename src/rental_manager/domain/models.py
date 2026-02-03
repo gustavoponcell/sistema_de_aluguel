@@ -21,6 +21,16 @@ class PaymentStatus(str, Enum):
 
 
 @dataclass(slots=True)
+class Payment:
+    id: Optional[int]
+    rental_id: int
+    amount: float
+    method: Optional[str]
+    paid_at: Optional[str]
+    note: Optional[str]
+
+
+@dataclass(slots=True)
 class Product:
     id: Optional[int]
     name: str

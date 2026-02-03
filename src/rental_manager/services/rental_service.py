@@ -6,9 +6,9 @@ import sqlite3
 from datetime import date
 from typing import Iterable, Optional
 
-from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, RentalStatus
+from rental_manager.domain.models import Rental, RentalItem, RentalStatus
 from rental_manager.logging_config import get_logger
-from rental_manager.repositories import rental_repo
+from rental_manager.repositories import payment_repo, rental_repo
 from rental_manager.services.errors import NotFoundError, ValidationError
 from rental_manager.services.inventory_service import InventoryService
 
@@ -20,6 +20,7 @@ class RentalService:
         self._connection = connection
         self._connection.row_factory = sqlite3.Row
         self._inventory_service = InventoryService(connection)
+        self._payment_repo = payment_repo.PaymentRepository(connection)
         self._logger = get_logger(self.__class__.__name__)
 
     def _items_for_validation(
@@ -108,7 +109,6 @@ class RentalService:
         address: Optional[str],
         items: Iterable[dict[str, object]],
         total_value: Optional[float],
-        paid_value: float,
         status: str | RentalStatus,
     ) -> Rental:
         self._validate_date_order(start_date, end_date)
@@ -119,6 +119,7 @@ class RentalService:
             end_date,
             exclude_rental_id=rental_id,
         )
+        paid_total = self._payment_repo.get_paid_total(rental_id)
         rental = rental_repo.update_rental(
             rental_id,
             customer_id,
@@ -128,7 +129,7 @@ class RentalService:
             address,
             items,
             total_value,
-            paid_value,
+            paid_total,
             status,
             connection=self._connection,
         )
@@ -167,25 +168,3 @@ class RentalService:
         if not updated:
             raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
         return True
-
-    def set_payment(self, rental_id: int, paid_value: float) -> bool:
-        rental, _items = self._get_rental_with_items(rental_id)
-        payment_status = self._compute_payment_status(paid_value, rental.total_value)
-        updated = rental_repo.set_payment(
-            rental_id,
-            paid_value,
-            payment_status,
-            connection=self._connection,
-        )
-        if not updated:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
-        return True
-
-    def _compute_payment_status(
-        self, paid_value: float, total_value: float
-    ) -> PaymentStatus:
-        if paid_value <= 0:
-            return PaymentStatus.UNPAID
-        if paid_value < total_value:
-            return PaymentStatus.PARTIAL
-        return PaymentStatus.PAID
