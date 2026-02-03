@@ -146,7 +146,8 @@ class BackupScreen(BaseScreen):
         QtWidgets.QMessageBox.information(
             self,
             "Sucesso",
-            f"Backup criado com sucesso: {backup_path.name}",
+            "Backup criado com sucesso.\n"
+            f"Arquivo: {backup_path}",
         )
 
     def _on_restore_selected(self) -> None:
@@ -183,7 +184,7 @@ class BackupScreen(BaseScreen):
             return
 
         try:
-            restore_backup(
+            result = restore_backup(
                 backup_path,
                 self._db_path,
                 confirm_overwrite=lambda: True,
@@ -199,8 +200,12 @@ class BackupScreen(BaseScreen):
         QtWidgets.QMessageBox.information(
             self,
             "Sucesso",
-            "Backup restaurado. O aplicativo será fechado para concluir a "
-            "restauração.",
+            "Backup restaurado com sucesso.\n"
+            f"Arquivo restaurado: {backup_path}\n"
+            f"Backup de segurança: {result.safety_backup_path}\n"
+            "Verificação de integridade: "
+            f"{'; '.join(result.integrity_check_results)}\n\n"
+            "O aplicativo será fechado para concluir a restauração.",
         )
         try:
             self._services.connection.close()
