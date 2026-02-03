@@ -10,6 +10,7 @@ from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.data_bus import DataEventBus
+from rental_manager.utils.theme import ThemeManager
 
 
 @dataclass(frozen=True)
@@ -23,3 +24,4 @@ class AppServices:
     inventory_service: InventoryService
     rental_service: RentalService
     payment_service: PaymentService
+    theme_manager: ThemeManager

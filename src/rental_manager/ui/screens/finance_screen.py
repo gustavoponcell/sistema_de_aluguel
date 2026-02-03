@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -11,12 +10,12 @@ from typing import Iterable
 from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import PaymentStatus, RentalStatus
-from rental_manager.paths import get_config_path, get_exports_dir
+from rental_manager.paths import get_exports_dir
 from rental_manager.repositories import rental_repo
 
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
-from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
+from rental_manager.ui.widgets import KpiCard
 
 
 class FinanceScreen(BaseScreen):
@@ -80,13 +79,19 @@ class FinanceScreen(BaseScreen):
         cards_layout = QtWidgets.QHBoxLayout()
         cards_layout.setSpacing(12)
 
-        self._received_card = self._create_summary_card("Total recebido", "R$ 0,00")
-        self._to_receive_card = self._create_summary_card("Total a receber", "R$ 0,00")
-        self._count_card = self._create_summary_card("Aluguéis no período", "0")
+        self._received_card = KpiCard(
+            self._services.theme_manager, "Total recebido", "R$ 0,00"
+        )
+        self._to_receive_card = KpiCard(
+            self._services.theme_manager, "Total a receber", "R$ 0,00"
+        )
+        self._count_card = KpiCard(
+            self._services.theme_manager, "Aluguéis no período", "0"
+        )
 
-        cards_layout.addWidget(self._received_card.container)
-        cards_layout.addWidget(self._to_receive_card.container)
-        cards_layout.addWidget(self._count_card.container)
+        cards_layout.addWidget(self._received_card)
+        cards_layout.addWidget(self._to_receive_card)
+        cards_layout.addWidget(self._count_card)
 
         layout.addLayout(cards_layout)
 
@@ -131,64 +136,6 @@ class FinanceScreen(BaseScreen):
         layout.addLayout(export_layout)
 
         layout.addStretch()
-        self.apply_kpi_card_style()
-
-    def _create_summary_card(self, title: str, value: str) -> "_SummaryCard":
-        container = QtWidgets.QFrame()
-        container.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        container.setObjectName("KpiCard")
-        card_layout = QtWidgets.QVBoxLayout(container)
-        card_layout.setContentsMargins(16, 12, 16, 12)
-
-        title_label = QtWidgets.QLabel(title)
-        title_label.setObjectName("KpiTitle")
-        value_label = QtWidgets.QLabel(value)
-        value_label.setObjectName("KpiValue")
-
-        card_layout.addWidget(title_label)
-        card_layout.addWidget(value_label)
-
-        return _SummaryCard(container=container, value_label=value_label)
-
-    def apply_kpi_card_style(self) -> None:
-        config_path = get_config_path()
-        settings = load_theme_settings(config_path)
-        resolved_theme = resolve_theme_choice(settings.theme)
-        if resolved_theme == "dark":
-            stylesheet = """
-            QFrame#KpiCard {
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.10);
-                border-radius: 10px;
-            }
-            QLabel#KpiTitle {
-                color: rgba(255, 255, 255, 0.78);
-                font-weight: 600;
-            }
-            QLabel#KpiValue {
-                color: rgba(255, 255, 255, 0.95);
-                font-size: 22px;
-                font-weight: 700;
-            }
-            """
-        else:
-            stylesheet = """
-            QFrame#KpiCard {
-                background: #ffffff;
-                border: 1px solid rgba(0, 0, 0, 0.10);
-                border-radius: 10px;
-            }
-            QLabel#KpiTitle {
-                color: rgba(0, 0, 0, 0.70);
-                font-weight: 600;
-            }
-            QLabel#KpiValue {
-                color: rgba(0, 0, 0, 0.92);
-                font-size: 22px;
-                font-weight: 700;
-            }
-            """
-        self.setStyleSheet(stylesheet)
 
     def _load_data(self) -> None:
         start_date, end_date = self._current_period()
@@ -199,14 +146,11 @@ class FinanceScreen(BaseScreen):
             start_date, end_date, connection=self._services.connection
         )
 
-        self._received_card.value_label.setText(_format_currency(report.total_received))
-        self._to_receive_card.value_label.setText(
-            _format_currency(report.total_to_receive)
-        )
-        self._count_card.value_label.setText(str(report.rentals_count))
+        self._received_card.set_value(_format_currency(report.total_received))
+        self._to_receive_card.set_value(_format_currency(report.total_to_receive))
+        self._count_card.set_value(str(report.rentals_count))
 
         self._populate_table(self._rentals)
-        self.apply_kpi_card_style()
 
     def _on_filters_changed(self) -> None:
         self._refresh_timer.start()
@@ -317,12 +261,6 @@ class FinanceScreen(BaseScreen):
             writer = csv.writer(file, delimiter=";")
             writer.writerow(headers)
             writer.writerows(rows)
-
-
-@dataclass(frozen=True)
-class _SummaryCard:
-    container: QtWidgets.QFrame
-    value_label: QtWidgets.QLabel
 
 
 def _format_currency(value: float) -> str:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from rental_manager.paths import get_config_path
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens import (
     BackupScreen,
@@ -14,12 +13,7 @@ from rental_manager.ui.screens import (
     ProductsScreen,
     RentalsScreen,
 )
-from rental_manager.utils.theme import (
-    ThemeSettings,
-    apply_theme_from_choice,
-    load_theme_settings,
-    save_theme_settings,
-)
+from rental_manager.utils.theme import ThemeSettings
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -29,8 +23,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self._services = services
         self._stack = QtWidgets.QStackedWidget()
-        self._config_path = get_config_path()
-        self._theme_settings = load_theme_settings(self._config_path)
+        self._theme_manager = services.theme_manager
         self.setWindowTitle("RentalManager")
         self.resize(1024, 640)
         self._build_ui()
@@ -135,7 +128,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     lambda _checked=False, act=action: self._on_theme_selected(act)
                 )
 
-        current_theme = self._theme_settings.theme
+        current_theme = self._theme_manager.theme_choice
         if current_theme not in theme_actions:
             current_theme = "system"
         theme_actions[current_theme].setChecked(True)
@@ -150,19 +143,4 @@ class MainWindow(QtWidgets.QMainWindow):
         if theme_choice not in ("light", "dark", "system"):
             theme_choice = "system"
         settings = ThemeSettings(theme=theme_choice)
-        self._theme_settings = settings
-        try:
-            save_theme_settings(self._config_path, settings)
-        except OSError:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Atenção",
-                "Não foi possível salvar a preferência de tema.",
-            )
-        app = QtWidgets.QApplication.instance()
-        if app is not None:
-            apply_theme_from_choice(app, theme_choice)
-        if self._finance_screen is not None:
-            self._finance_screen.apply_kpi_card_style()
-        if self._rentals_screen is not None:
-            self._rentals_screen.apply_today_card_style()
+        self._theme_manager.set_theme(settings.theme)

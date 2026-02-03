@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from typing import Literal
 
-from PySide6 import QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from rental_manager.logging_config import get_logger
 from rental_manager.utils.config_store import load_config_data, save_config_data
@@ -18,6 +18,45 @@ class ThemeSettings:
     """Persisted theme settings."""
 
     theme: ThemeChoice = "system"
+
+
+class ThemeManager(QtCore.QObject):
+    """Central theme manager with change notifications."""
+
+    theme_changed = QtCore.Signal(str)
+
+    def __init__(self, app: QtWidgets.QApplication, config_path) -> None:
+        super().__init__()
+        self._app = app
+        self._config_path = config_path
+        self._settings = load_theme_settings(config_path)
+        self._resolved_theme = resolve_theme_choice(self._settings.theme)
+        self._apply_theme()
+
+    @property
+    def theme_choice(self) -> ThemeChoice:
+        return self._settings.theme
+
+    def set_theme(self, choice: ThemeChoice) -> None:
+        if choice not in ("light", "dark", "system"):
+            choice = "system"
+        self._settings = ThemeSettings(theme=choice)
+        logger = get_logger(__name__)
+        try:
+            save_theme_settings(self._config_path, self._settings)
+        except OSError:
+            logger.warning("Não foi possível salvar a preferência de tema.")
+        self._apply_theme()
+        self.theme_changed.emit(self._resolved_theme)
+
+    def is_dark(self) -> bool:
+        return self._resolved_theme == "dark"
+
+    def _apply_theme(self) -> None:
+        logger = get_logger(__name__)
+        if not apply_theme_from_choice(self._app, self._settings.theme):
+            logger.warning("Falha ao aplicar tema. Usando estilo padrão.")
+        self._resolved_theme = resolve_theme_choice(self._settings.theme)
 
 
 def load_theme_settings(config_path) -> ThemeSettings:
