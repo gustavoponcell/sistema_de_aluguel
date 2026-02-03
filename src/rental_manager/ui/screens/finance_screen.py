@@ -47,9 +47,13 @@ from rental_manager.ui.widgets import KpiCard
 
 
 @dataclass(frozen=True)
-class DashboardSnapshot:
+class SummarySnapshot:
     report: rental_repo.FinanceReport
     rentals: list[rental_repo.RentalFinanceRow]
+
+
+@dataclass(frozen=True)
+class ChartsSnapshot:
     monthly_revenue: list[rental_repo.MonthlyMetric]
     monthly_rentals: list[rental_repo.MonthlyMetric]
     monthly_to_receive: list[rental_repo.MonthlyMetric]
@@ -63,9 +67,11 @@ class FinanceScreen(BaseScreen):
     def __init__(self, services: AppServices) -> None:
         super().__init__(services)
         self._rentals: list[rental_repo.RentalFinanceRow] = []
-        self._dashboard_cache: dict[tuple[str, str], DashboardSnapshot] = {}
+        self._summary_cache: dict[tuple[str, str], SummarySnapshot] = {}
+        self._charts_cache: dict[tuple[str, str], ChartsSnapshot] = {}
         self._chart_backend = self._resolve_chart_backend()
         self._chart_panels: dict[str, dict[str, object]] = {}
+        self._charts_loaded = False
         self._refresh_timer = QtCore.QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(200)
@@ -112,8 +118,8 @@ class FinanceScreen(BaseScreen):
         self._start_date.setDate(start_period)
         self._end_date.setDate(today)
 
-        refresh_button = QtWidgets.QPushButton("Atualizar")
-        refresh_button.clicked.connect(self.refresh)
+        self._refresh_button = QtWidgets.QPushButton("Atualizar")
+        self._refresh_button.clicked.connect(self._on_refresh_clicked)
         self._start_date.dateChanged.connect(self._on_filters_changed)
         self._end_date.dateChanged.connect(self._on_filters_changed)
 
@@ -122,7 +128,7 @@ class FinanceScreen(BaseScreen):
         filter_layout.addWidget(QtWidgets.QLabel("Fim:"))
         filter_layout.addWidget(self._end_date)
         filter_layout.addStretch()
-        filter_layout.addWidget(refresh_button)
+        filter_layout.addWidget(self._refresh_button)
 
         layout.addWidget(filter_group)
 
@@ -130,12 +136,16 @@ class FinanceScreen(BaseScreen):
         layout.addWidget(self._tabs)
 
         self._summary_tab = QtWidgets.QWidget()
+        self._charts_tab = QtWidgets.QWidget()
         self._reports_tab = QtWidgets.QWidget()
         self._tabs.addTab(self._summary_tab, "Resumo")
+        self._tabs.addTab(self._charts_tab, "Gráficos")
         self._tabs.addTab(self._reports_tab, "Relatórios")
 
         self._build_summary_tab()
+        self._build_charts_tab()
         self._build_reports_tab()
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
     def _build_summary_tab(self) -> None:
         summary_layout = QtWidgets.QVBoxLayout(self._summary_tab)
@@ -171,6 +181,23 @@ class FinanceScreen(BaseScreen):
             )
             self._charts_notice.setVisible(True)
 
+        summary_layout.addStretch()
+
+    def _build_charts_tab(self) -> None:
+        charts_layout = QtWidgets.QVBoxLayout(self._charts_tab)
+
+        charts_notice = QtWidgets.QLabel()
+        charts_notice.setWordWrap(True)
+        charts_notice.setVisible(False)
+        charts_layout.addWidget(charts_notice)
+
+        if self._chart_backend == "none":
+            charts_notice.setText(
+                "Gráficos indisponíveis: não foi possível carregar Matplotlib ou "
+                "QtCharts. Os relatórios continuam disponíveis."
+            )
+            charts_notice.setVisible(True)
+
         scroll_area = QtWidgets.QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_content = QtWidgets.QWidget()
@@ -204,7 +231,8 @@ class FinanceScreen(BaseScreen):
         grid_layout.addWidget(top_revenue_panel, 1, 1)
         grid_layout.addWidget(receivable_panel, 2, 0, 1, 2)
 
-        summary_layout.addWidget(scroll_area)
+        charts_layout.addWidget(scroll_area)
+        charts_layout.addStretch()
 
     def _build_reports_tab(self) -> None:
         reports_layout = QtWidgets.QVBoxLayout(self._reports_tab)
@@ -250,6 +278,15 @@ class FinanceScreen(BaseScreen):
         reports_layout.addLayout(export_layout)
 
         reports_layout.addStretch()
+
+    def _on_tab_changed(self, index: int) -> None:
+        if self._tabs.widget(index) is not self._charts_tab:
+            return
+        if self._charts_loaded:
+            return
+        self._charts_loaded = True
+        start_date, end_date = self._current_period()
+        self._load_charts_data(start_date, end_date, force=False)
 
     def _create_chart_panel(self, title: str, key: str) -> QtWidgets.QGroupBox:
         group = QtWidgets.QGroupBox(title)
@@ -336,11 +373,11 @@ class FinanceScreen(BaseScreen):
     def _load_data(self, *, force: bool = False) -> None:
         start_date, end_date = self._current_period()
         cache_key = (start_date, end_date)
-        if force or cache_key not in self._dashboard_cache:
-            snapshot = self._fetch_dashboard_data(start_date, end_date)
-            self._dashboard_cache[cache_key] = snapshot
+        if force or cache_key not in self._summary_cache:
+            snapshot = self._fetch_summary_data(start_date, end_date)
+            self._summary_cache[cache_key] = snapshot
         else:
-            snapshot = self._dashboard_cache[cache_key]
+            snapshot = self._summary_cache[cache_key]
 
         self._rentals = snapshot.rentals
         self._received_card.set_value(_format_currency(snapshot.report.total_received))
@@ -348,19 +385,36 @@ class FinanceScreen(BaseScreen):
         self._count_card.set_value(str(snapshot.report.rentals_count))
 
         self._populate_table(self._rentals)
-        self._update_dashboard_charts(snapshot, end_date=end_date)
+        if self._charts_loaded:
+            self._load_charts_data(start_date, end_date, force=force)
 
-    def _fetch_dashboard_data(
+    def _fetch_summary_data(
         self,
         start_date: str,
         end_date: str,
-    ) -> DashboardSnapshot:
+    ) -> SummarySnapshot:
         report = rental_repo.get_finance_report_by_period(
             start_date, end_date, connection=self._services.connection
         )
         rentals = rental_repo.list_rentals_by_period(
             start_date, end_date, connection=self._services.connection
         )
+        return SummarySnapshot(report=report, rentals=rentals)
+
+    def _load_charts_data(
+        self, start_date: str, end_date: str, *, force: bool
+    ) -> None:
+        if self._chart_backend == "none":
+            return
+        cache_key = (start_date, end_date)
+        if force or cache_key not in self._charts_cache:
+            snapshot = self._fetch_charts_data(start_date, end_date)
+            self._charts_cache[cache_key] = snapshot
+        else:
+            snapshot = self._charts_cache[cache_key]
+        self._update_dashboard_charts(snapshot, end_date=end_date)
+
+    def _fetch_charts_data(self, start_date: str, end_date: str) -> ChartsSnapshot:
         chart_start_date, _, _ = self._chart_months(end_date)
         monthly_revenue = rental_repo.list_monthly_revenue(
             chart_start_date, end_date, connection=self._services.connection
@@ -377,9 +431,7 @@ class FinanceScreen(BaseScreen):
         top_revenue = rental_repo.list_top_products_by_revenue(
             start_date, end_date, connection=self._services.connection
         )
-        return DashboardSnapshot(
-            report=report,
-            rentals=rentals,
+        return ChartsSnapshot(
             monthly_revenue=monthly_revenue,
             monthly_rentals=monthly_rentals,
             monthly_to_receive=monthly_to_receive,
@@ -410,7 +462,7 @@ class FinanceScreen(BaseScreen):
 
     def _update_dashboard_charts(
         self,
-        snapshot: DashboardSnapshot,
+        snapshot: ChartsSnapshot,
         *,
         end_date: str,
     ) -> None:
@@ -563,11 +615,15 @@ class FinanceScreen(BaseScreen):
     def _on_filters_changed(self) -> None:
         self._refresh_timer.start()
 
+    def _on_refresh_clicked(self) -> None:
+        self._load_data(force=True)
+
     def refresh(self) -> None:
         self._load_data()
 
     def _on_data_changed(self) -> None:
-        self._dashboard_cache.clear()
+        self._summary_cache.clear()
+        self._charts_cache.clear()
         super()._on_data_changed()
 
     def _current_period(self) -> tuple[str, str]:

@@ -209,6 +209,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `idx_rentals_start_date`
 - `idx_rentals_end_date`
 - `idx_rentals_status`
+- `idx_rentals_created_at`
 - `idx_rental_items_rental_id`
 - `idx_rental_items_product_id`
 
@@ -351,6 +352,10 @@ start_date <= D < end_date
 - **Concluir**: muda status para `completed`.
 - **Registrar pagamento**: adiciona um registro em `payments` e recalcula o total pago.
 - **Gerar PDF**: contrato ou recibo.
+- Carregamento assíncrono da lista com placeholder de “Carregando…”.
+- Por padrão, a agenda carrega **hoje + próximos 7 dias** (filtro rápido).
+- Cache em memória por alguns segundos para alternar abas sem recarregar.
+- Logs registram tempo de query, transformação e renderização.
 
 **Validações e mensagens**
 - Confirmação antes de cancelar ou concluir.
@@ -398,9 +403,9 @@ start_date <= D < end_date
 
 **Componentes**
 - Filtro por data (período baseado em `rentals.start_date`).
-- Abas: **Resumo** (dashboard) e **Relatórios**.
+- Abas: **Resumo**, **Gráficos** e **Relatórios**.
 - Cards: total recebido, total a receber, quantidade de aluguéis.
-- Gráficos e rankings (offline) no resumo.
+- Gráficos e rankings (offline) ficam na aba **Gráficos**.
 - Tabela com aluguéis do período + botão de exportação CSV nos relatórios.
 
 **Regras**
@@ -419,6 +424,7 @@ start_date <= D < end_date
 - Ignora aluguéis cancelados.
 - CSV salvo em `%APPDATA%\RentalManager\exports`.
 - Se Matplotlib não estiver disponível, o app tenta QtCharts. Se ambos falharem, os gráficos são ocultados com aviso; KPIs e tabelas continuam funcionando.
+- Gráficos são carregados sob demanda (lazy loading) ao abrir a aba **Gráficos**, com cache por período e atualização ao alterar o filtro ou clicar em **Atualizar**.
 
 ---
 
