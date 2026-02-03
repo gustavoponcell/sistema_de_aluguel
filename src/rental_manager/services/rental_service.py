@@ -66,9 +66,9 @@ class RentalService:
             raise ValidationError(
                 "Datas inválidas. Verifique o início e o fim do aluguel."
             ) from exc
-        if end < start:
+        if end <= start:
             raise ValidationError(
-                "A data de término não pode ser anterior à data de início."
+                "A data de término deve ser posterior à data de início."
             )
 
     def create_draft_rental(

@@ -11,6 +11,7 @@ from PySide6 import QtCore, QtWidgets
 from rental_manager.domain.models import Customer, Product
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.screens.customers_screen import CustomerDialog
 
 
@@ -28,17 +29,20 @@ class RentalItemDraft:
         return self.qty * self.unit_price
 
 
-class NewRentalScreen(QtWidgets.QWidget):
+class NewRentalScreen(BaseScreen):
     """Screen for creating a new rental workflow."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._customers: List[Customer] = []
         self._products: List[Product] = []
         self._items: List[RentalItemDraft] = []
         self._editing_index: Optional[int] = None
         self._build_ui()
+        self._load_customers()
+        self._load_products()
+
+    def refresh(self) -> None:
         self._load_customers()
         self._load_products()
 
@@ -221,9 +225,10 @@ class NewRentalScreen(QtWidgets.QWidget):
         return response == QtWidgets.QMessageBox.Yes
 
     def _sync_end_date_min(self, new_start_date: QtCore.QDate) -> None:
-        self.end_date_input.setMinimumDate(new_start_date)
-        if self.end_date_input.date() < new_start_date:
-            self.end_date_input.setDate(new_start_date)
+        minimum_end_date = new_start_date.addDays(1)
+        self.end_date_input.setMinimumDate(minimum_end_date)
+        if self.end_date_input.date() < minimum_end_date:
+            self.end_date_input.setDate(minimum_end_date)
 
     def _load_customers(self) -> None:
         try:
@@ -293,6 +298,7 @@ class NewRentalScreen(QtWidgets.QWidget):
                 "Não foi possível salvar o cliente. Verifique os dados e tente novamente."
             )
             return
+        self._services.data_bus.data_changed.emit()
         self._load_customers()
         if customer and customer.id:
             index = self.customer_combo.findData(customer.id)
@@ -428,9 +434,9 @@ class NewRentalScreen(QtWidgets.QWidget):
 
     def _validate_dates(self) -> bool:
         _event_date, start_date, end_date = self._get_dates()
-        if start_date > end_date:
+        if start_date >= end_date:
             self._show_warning(
-                "A data de término não pode ser anterior à data de início."
+                "A data de término deve ser posterior à data de início."
             )
             return False
         return True
@@ -511,6 +517,7 @@ class NewRentalScreen(QtWidgets.QWidget):
                 "Não foi possível salvar o aluguel. Verifique os dados e tente novamente."
             )
             return False
+        self._services.data_bus.data_changed.emit()
         return True
 
     def _on_save_draft(self) -> None:
@@ -530,7 +537,7 @@ class NewRentalScreen(QtWidgets.QWidget):
         today = QtCore.QDate.currentDate()
         self.event_date_input.setDate(today)
         self.start_date_input.setDate(today)
-        self.end_date_input.setDate(today)
+        self.end_date_input.setDate(today.addDays(1))
         self._sync_end_date_min(today)
         self.address_input.clear()
         self.product_combo.setCurrentIndex(0)

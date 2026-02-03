@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import Customer
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 
 
 class CustomerDialog(QtWidgets.QDialog):
@@ -79,13 +80,16 @@ class CustomerDialog(QtWidgets.QDialog):
         }
 
 
-class CustomersScreen(QtWidgets.QWidget):
+class CustomersScreen(BaseScreen):
     """Screen for customers."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._customers: List[Customer] = []
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(250)
+        self._search_timer.timeout.connect(self.refresh)
         self._build_ui()
         self._load_customers()
 
@@ -141,7 +145,14 @@ class CustomersScreen(QtWidgets.QWidget):
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:
-        self._load_customers(text)
+        self._schedule_refresh(text)
+
+    def _schedule_refresh(self, text: str) -> None:
+        self._pending_search = text
+        self._search_timer.start()
+
+    def refresh(self) -> None:
+        self._load_customers(getattr(self, "_pending_search", self.search_input.text()))
 
     def _load_customers(self, term: str = "") -> None:
         try:
@@ -209,6 +220,7 @@ class CustomersScreen(QtWidgets.QWidget):
                 "Não foi possível salvar o cliente. Verifique os dados e tente novamente.",
             )
             return
+        self._services.data_bus.data_changed.emit()
         self._load_customers(self.search_input.text())
 
     def _on_edit(self) -> None:
@@ -239,6 +251,7 @@ class CustomersScreen(QtWidgets.QWidget):
                 "Atenção",
                 "O cliente não foi encontrado para atualização.",
             )
+        self._services.data_bus.data_changed.emit()
         self._load_customers(self.search_input.text())
 
     def _on_delete(self) -> None:
@@ -268,4 +281,5 @@ class CustomersScreen(QtWidgets.QWidget):
                 "Atenção",
                 "O cliente já havia sido removido ou não foi encontrado.",
             )
+        self._services.data_bus.data_changed.emit()
         self._load_customers(self.search_input.text())

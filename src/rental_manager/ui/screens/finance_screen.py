@@ -15,16 +15,20 @@ from rental_manager.paths import get_config_path, get_exports_dir
 from rental_manager.repositories import rental_repo
 
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
 
 
-class FinanceScreen(QtWidgets.QWidget):
+class FinanceScreen(BaseScreen):
     """Screen for finance reports."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._rentals: list[rental_repo.RentalFinanceRow] = []
+        self._refresh_timer = QtCore.QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(250)
+        self._refresh_timer.timeout.connect(self.refresh)
         self._build_ui()
         self._load_data()
 
@@ -60,7 +64,9 @@ class FinanceScreen(QtWidgets.QWidget):
         self._end_date.setDate(today)
 
         refresh_button = QtWidgets.QPushButton("Atualizar")
-        refresh_button.clicked.connect(self._load_data)
+        refresh_button.clicked.connect(self.refresh)
+        self._start_date.dateChanged.connect(self._on_filters_changed)
+        self._end_date.dateChanged.connect(self._on_filters_changed)
 
         filter_layout.addWidget(QtWidgets.QLabel("Início:"))
         filter_layout.addWidget(self._start_date)
@@ -201,6 +207,12 @@ class FinanceScreen(QtWidgets.QWidget):
 
         self._populate_table(self._rentals)
         self.apply_kpi_card_style()
+
+    def _on_filters_changed(self) -> None:
+        self._refresh_timer.start()
+
+    def refresh(self) -> None:
+        self._load_data()
 
     def _current_period(self) -> tuple[str, str]:
         start_qdate = self._start_date.date()

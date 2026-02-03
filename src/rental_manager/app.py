@@ -21,6 +21,7 @@ from rental_manager.repositories import CustomerRepo, ProductRepo
 from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.data_bus import DataEventBus
 from rental_manager.ui.main_window import MainWindow
 from rental_manager.utils.backup import export_backup, load_backup_settings
 from rental_manager.utils.theme import apply_theme_from_choice, load_theme_settings
@@ -56,6 +57,7 @@ def main() -> int:
     connection = get_connection(get_db_path())
     services = AppServices(
         connection=connection,
+        data_bus=DataEventBus(),
         customer_repo=CustomerRepo(connection),
         product_repo=ProductRepo(connection),
         inventory_service=InventoryService(connection),
