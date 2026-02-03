@@ -57,9 +57,10 @@ class MainWindow(QtWidgets.QMainWindow):
         button_group.setExclusive(True)
 
         self._finance_screen = FinanceScreen(self._services)
+        self._rentals_screen = RentalsScreen(self._services)
         screens = [
             ("Novo Aluguel", NewRentalScreen(self._services)),
-            ("Agenda", RentalsScreen(self._services)),
+            ("Agenda", self._rentals_screen),
             ("Estoque", ProductsScreen(self._services)),
             ("Clientes", CustomersScreen(self._services)),
             ("Financeiro", self._finance_screen),
@@ -156,3 +157,5 @@ class MainWindow(QtWidgets.QMainWindow):
             apply_theme_from_choice(app, theme_choice)
         if self._finance_screen is not None:
             self._finance_screen.apply_kpi_card_style()
+        if self._rentals_screen is not None:
+            self._rentals_screen.apply_today_card_style()
