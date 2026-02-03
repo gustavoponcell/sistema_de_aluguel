@@ -16,11 +16,12 @@ from rental_manager.domain.models import (
     RentalItem,
     RentalStatus,
 )
-from rental_manager.paths import get_pdfs_dir
+from rental_manager.paths import get_config_path, get_pdfs_dir
 from rental_manager.repositories import rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.utils.pdf_generator import generate_rental_pdf
+from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
 
 
 def _format_currency(value: float) -> str:
@@ -741,17 +742,17 @@ class RentalsScreen(QtWidgets.QWidget):
         layout.addWidget(subtitle)
 
         self.today_frame = QtWidgets.QFrame()
-        self.today_frame.setObjectName("todayFrame")
+        self.today_frame.setObjectName("TodayCard")
         today_layout = QtWidgets.QVBoxLayout(self.today_frame)
         today_layout.setContentsMargins(16, 12, 16, 12)
         today_layout.setSpacing(8)
         today_title = QtWidgets.QLabel("Aluguéis de hoje")
-        today_title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        today_title.setObjectName("TodayTitle")
         self.today_summary_label = QtWidgets.QLabel()
-        self.today_summary_label.setStyleSheet("font-size: 14px;")
+        self.today_summary_label.setObjectName("TodaySubtitle")
         self.today_list_label = QtWidgets.QLabel()
         self.today_list_label.setWordWrap(True)
-        self.today_list_label.setStyleSheet("font-size: 14px; color: #333;")
+        self.today_list_label.setObjectName("TodayList")
         today_layout.addWidget(today_title)
         today_layout.addWidget(self.today_summary_label)
         today_layout.addWidget(self.today_list_label)
@@ -892,13 +893,57 @@ class RentalsScreen(QtWidgets.QWidget):
                 font-size: 14px;
                 padding: 8px 14px;
             }
-            QFrame#todayFrame {
-                background-color: #fff6db;
-                border: 1px solid #f3d48a;
-                border-radius: 10px;
-            }
             """
         )
+        self.apply_today_card_style()
+
+    def apply_today_card_style(self) -> None:
+        config_path = get_config_path()
+        settings = load_theme_settings(config_path)
+        resolved_theme = resolve_theme_choice(settings.theme)
+        if resolved_theme == "dark":
+            stylesheet = """
+            QFrame#TodayCard {
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                border-radius: 12px;
+                padding: 10px;
+            }
+            QLabel#TodayTitle {
+                color: rgba(255, 255, 255, 0.92);
+                font-weight: 700;
+                font-size: 18px;
+            }
+            QLabel#TodaySubtitle {
+                color: rgba(255, 255, 255, 0.75);
+            }
+            QWidget#TodayList,
+            QLabel#TodayList {
+                color: rgba(255, 255, 255, 0.90);
+            }
+            """
+        else:
+            stylesheet = """
+            QFrame#TodayCard {
+                background: #fff7d6;
+                border: 1px solid rgba(0, 0, 0, 0.10);
+                border-radius: 12px;
+                padding: 10px;
+            }
+            QLabel#TodayTitle {
+                color: rgba(0, 0, 0, 0.92);
+                font-weight: 700;
+                font-size: 18px;
+            }
+            QLabel#TodaySubtitle {
+                color: rgba(0, 0, 0, 0.70);
+            }
+            QWidget#TodayList,
+            QLabel#TodayList {
+                color: rgba(0, 0, 0, 0.90);
+            }
+            """
+        self.today_frame.setStyleSheet(stylesheet)
 
     def _set_actions_enabled(self, enabled: bool) -> None:
         self.details_button.setEnabled(enabled)
@@ -972,6 +1017,7 @@ class RentalsScreen(QtWidgets.QWidget):
         if count == 0:
             self.today_summary_label.setText("Nenhum aluguel previsto para hoje.")
             self.today_list_label.setText("Assim que houver um aluguel, ele aparece aqui.")
+            self.apply_today_card_style()
             return
         label = "aluguel" if count == 1 else "aluguéis"
         self.today_summary_label.setText(f"{count} {label} para hoje.")
@@ -985,6 +1031,7 @@ class RentalsScreen(QtWidgets.QWidget):
         if count > 5:
             lines.append(f"… e mais {count - 5} {label}.")
         self.today_list_label.setText("\n".join(lines))
+        self.apply_today_card_style()
 
     def _render_table(self) -> None:
         self.table.setRowCount(len(self._rentals))
