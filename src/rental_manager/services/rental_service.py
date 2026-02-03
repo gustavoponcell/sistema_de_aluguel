@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from typing import Iterable, Optional
 
 from rental_manager.domain.models import Rental, RentalItem, RentalStatus
@@ -66,7 +66,7 @@ class RentalService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
-    def _validate_date_order(self, start_date: str, end_date: str) -> None:
+    def _normalize_dates(self, start_date: str, end_date: str) -> tuple[str, str]:
         try:
             start = date.fromisoformat(start_date)
             end = date.fromisoformat(end_date)
@@ -74,10 +74,16 @@ class RentalService:
             raise ValidationError(
                 "Datas inválidas. Verifique o início e o fim do aluguel."
             ) from exc
-        if end <= start:
+        if end == start:
+            end = start + timedelta(days=1)
+            self._logger.info(
+                "End_date ajustado para 1 dia após start_date (%s).", end.isoformat()
+            )
+        if end < start:
             raise ValidationError(
                 "A data de término deve ser posterior à data de início."
             )
+        return start.isoformat(), end.isoformat()
 
     def create_draft_rental(
         self,
@@ -90,7 +96,7 @@ class RentalService:
         total_value: Optional[float] = None,
         paid_value: float = 0.0,
     ) -> Rental:
-        self._validate_date_order(start_date, end_date)
+        start_date, end_date = self._normalize_dates(start_date, end_date)
         items_for_validation = self._items_for_validation(items)
         self._validate_inventory(items_for_validation, start_date, end_date)
         return rental_repo.create_rental(
@@ -118,7 +124,7 @@ class RentalService:
         total_value: Optional[float],
         status: str | RentalStatus,
     ) -> Rental:
-        self._validate_date_order(start_date, end_date)
+        start_date, end_date = self._normalize_dates(start_date, end_date)
         items_for_validation = self._items_for_validation(items)
         self._validate_inventory(
             items_for_validation,
