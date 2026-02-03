@@ -50,8 +50,8 @@ class Product:
     category: Optional[str]
     total_qty: int
     unit_price: Optional[float]
-    kind: ProductKind = ProductKind.PRODUCT
     active: bool
+    kind: ProductKind = ProductKind.PRODUCT
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
