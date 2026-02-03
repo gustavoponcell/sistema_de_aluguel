@@ -503,8 +503,22 @@ start_date <= D < end_date
 .\build_windows.ps1
 ```
 
+- O script usa `src\rental_manager\__main__.py` como entrypoint e aplica ícone + metadados de versão via `tools\windows_version_info.txt`.
+- Se quiser chamar o PyInstaller manualmente:
+
+```powershell
+pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
+```
+
 ### 9.2 Onde fica o executável
 - `dist\RentalManager\RentalManager.exe`
+
+### 9.2.1 Pasta de dados do usuário
+- `%APPDATA%\RentalManager\`
+  - `rental_manager.db`
+  - `pdfs\`
+  - `backups\`
+  - `logs\`
 
 ### 9.3 Limitações comuns / troubleshooting
 - Algumas máquinas podem bloquear execução por **SmartScreen**.
@@ -514,6 +528,7 @@ start_date <= D < end_date
 ### 9.4 Distribuição
 1. Copie a pasta `dist\RentalManager` completa.
 2. Execute `RentalManager.exe` no PC de destino.
+3. Para criar atalho: botão direito no `RentalManager.exe` → **Enviar para > Área de trabalho (criar atalho)**.
 
 ---
 

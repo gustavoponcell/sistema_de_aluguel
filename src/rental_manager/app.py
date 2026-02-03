@@ -15,7 +15,9 @@ from rental_manager.paths import (
     get_backup_dir,
     get_config_path,
     get_db_path,
+    get_exports_dir,
     get_logs_dir,
+    get_pdfs_dir,
 )
 from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
 from rental_manager.services.inventory_service import InventoryService
@@ -34,6 +36,8 @@ def main() -> int:
     get_app_data_dir()
     get_backup_dir()
     get_logs_dir()
+    get_pdfs_dir()
+    get_exports_dir()
     connection = get_connection(get_db_path())
     apply_migrations(connection)
 
