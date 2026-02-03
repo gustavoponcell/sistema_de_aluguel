@@ -6,9 +6,20 @@ from typing import List, Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from rental_manager.domain.models import Product
+from rental_manager.domain.models import Product, ProductKind, SERVICE_DEFAULT_QTY
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
+from rental_manager.ui.strings import (
+    LABEL_STOCK_AVAILABLE,
+    LABEL_STOCK_IN_USE,
+    LABEL_STOCK_TOTAL,
+    LABEL_STOCK_TYPE,
+    TERM_ITEM,
+    TITLE_CONFIRMATION,
+    TITLE_ERROR,
+    TITLE_WARNING,
+    product_kind_label,
+)
 
 
 class ProductDialog(QtWidgets.QDialog):
@@ -21,7 +32,7 @@ class ProductDialog(QtWidgets.QDialog):
     ) -> None:
         super().__init__(parent)
         self._product = product
-        self.setWindowTitle("Produto")
+        self.setWindowTitle("Item")
         self.setModal(True)
         self._build_ui()
         if product:
@@ -33,6 +44,10 @@ class ProductDialog(QtWidgets.QDialog):
         form = QtWidgets.QFormLayout()
         self.name_input = QtWidgets.QLineEdit()
         self.category_input = QtWidgets.QLineEdit()
+        self.kind_input = QtWidgets.QComboBox()
+        self.kind_input.addItem("Produto (físico)", ProductKind.PRODUCT)
+        self.kind_input.addItem("Serviço", ProductKind.SERVICE)
+        self.kind_input.currentIndexChanged.connect(self._on_kind_changed)
         self.total_qty_input = QtWidgets.QSpinBox()
         self.total_qty_input.setRange(0, 1_000_000)
         self.total_qty_input.setSingleStep(1)
@@ -41,10 +56,18 @@ class ProductDialog(QtWidgets.QDialog):
         self.unit_price_input.setDecimals(2)
         self.unit_price_input.setSingleStep(1.0)
         self.unit_price_input.setPrefix("R$ ")
+        self.qty_hint = QtWidgets.QLabel(
+            "Para serviços, a disponibilidade é alta e não bloqueia pedidos."
+        )
+        self.qty_hint.setStyleSheet("color: #666; font-size: 12px;")
+        self.qty_hint.setWordWrap(True)
+        self.qty_hint.setVisible(False)
 
-        form.addRow("Nome:", self.name_input)
+        form.addRow(f"Nome do {TERM_ITEM.lower()}:", self.name_input)
         form.addRow("Categoria:", self.category_input)
+        form.addRow("Tipo:", self.kind_input)
         form.addRow("Quantidade total:", self.total_qty_input)
+        form.addRow("", self.qty_hint)
         form.addRow("Preço padrão:", self.unit_price_input)
 
         layout.addLayout(form)
@@ -56,12 +79,30 @@ class ProductDialog(QtWidgets.QDialog):
         self.button_box.rejected.connect(self.reject)
 
         layout.addWidget(self.button_box)
+        self._on_kind_changed()
 
     def _load_product(self, product: Product) -> None:
         self.name_input.setText(product.name)
         self.category_input.setText(product.category or "")
         self.total_qty_input.setValue(product.total_qty)
         self.unit_price_input.setValue(product.unit_price or 0.0)
+        index = (
+            1
+            if product.kind == ProductKind.SERVICE
+            else 0
+        )
+        self.kind_input.setCurrentIndex(index)
+        self._on_kind_changed()
+
+    def _on_kind_changed(self) -> None:
+        kind = self.kind_input.currentData()
+        is_service = kind == ProductKind.SERVICE
+        self.total_qty_input.setEnabled(not is_service)
+        if is_service:
+            self.total_qty_input.setValue(SERVICE_DEFAULT_QTY)
+        elif self.total_qty_input.value() == SERVICE_DEFAULT_QTY:
+            self.total_qty_input.setValue(1)
+        self.qty_hint.setVisible(is_service)
 
     def _on_accept(self) -> None:
         if not self._validate():
@@ -73,29 +114,30 @@ class ProductDialog(QtWidgets.QDialog):
         if not name:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
-                "Informe o nome do produto.",
+                TITLE_WARNING,
+                "Informe o nome do item.",
             )
             return False
         category = self.category_input.text().strip()
         if not category:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
-                "Informe a categoria do produto.",
+                TITLE_WARNING,
+                "Informe a categoria do item.",
             )
             return False
-        if self.total_qty_input.value() <= 0:
+        kind = self.kind_input.currentData()
+        if kind == ProductKind.PRODUCT and self.total_qty_input.value() <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
+                TITLE_WARNING,
                 "A quantidade total deve ser maior que zero.",
             )
             return False
         if self.unit_price_input.value() <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
+                TITLE_WARNING,
                 "O preço padrão deve ser maior que zero.",
             )
             return False
@@ -107,6 +149,7 @@ class ProductDialog(QtWidgets.QDialog):
             "category": self.category_input.text().strip(),
             "total_qty": self.total_qty_input.value(),
             "unit_price": float(self.unit_price_input.value()),
+            "kind": self.kind_input.currentData(),
         }
 
 
@@ -134,7 +177,7 @@ class ProductsScreen(BaseScreen):
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Cadastre itens, ajuste quantidades e acompanhe o disponível."
+            "Gerencie produtos e serviços, ajuste quantidades e acompanhe a disponibilidade."
         )
         subtitle.setWordWrap(True)
 
@@ -154,14 +197,14 @@ class ProductsScreen(BaseScreen):
         search_layout = QtWidgets.QHBoxLayout()
         search_label = QtWidgets.QLabel("Buscar:")
         self.search_input = QtWidgets.QLineEdit()
-        self.search_input.setPlaceholderText("Digite o nome do produto")
+        self.search_input.setPlaceholderText("Digite o nome do item")
         self.search_input.textChanged.connect(self._on_search_changed)
         search_layout.addWidget(search_label)
         search_layout.addWidget(self.search_input)
         layout.addLayout(search_layout)
 
         button_layout = QtWidgets.QHBoxLayout()
-        self.new_button = QtWidgets.QPushButton("Novo")
+        self.new_button = QtWidgets.QPushButton("Novo item")
         self.edit_button = QtWidgets.QPushButton("Editar")
         self.deactivate_button = QtWidgets.QPushButton("Desativar")
         self.edit_button.setEnabled(False)
@@ -175,9 +218,9 @@ class ProductsScreen(BaseScreen):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
-        self.table = QtWidgets.QTableWidget(0, 4)
+        self.table = QtWidgets.QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(
-            ["Produto", "Total", "Na rua", "Comigo"]
+            [TERM_ITEM, LABEL_STOCK_TYPE, LABEL_STOCK_TOTAL, LABEL_STOCK_IN_USE, LABEL_STOCK_AVAILABLE]
         )
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -189,6 +232,7 @@ class ProductsScreen(BaseScreen):
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:
@@ -210,8 +254,8 @@ class ProductsScreen(BaseScreen):
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
-                "Erro",
-                "Não foi possível carregar os produtos.",
+                TITLE_ERROR,
+                "Não foi possível carregar os itens.",
             )
             return
         self._products = products
@@ -221,6 +265,7 @@ class ProductsScreen(BaseScreen):
         reference_date = self.reference_date_input.date().toPython()
         self.table.setRowCount(len(products))
         for row, product in enumerate(products):
+            is_service = product.kind == ProductKind.SERVICE
             reserved_qty = self._services.inventory_service.on_loan(
                 product.id or 0, reference_date
             )
@@ -229,12 +274,25 @@ class ProductsScreen(BaseScreen):
             )
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(product.name))
             self.table.setItem(
-                row,
-                1,
-                QtWidgets.QTableWidgetItem(str(product.total_qty)),
+                row, 1, QtWidgets.QTableWidgetItem(product_kind_label(product.kind))
             )
-            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(reserved_qty)))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(available_qty)))
+            self.table.setItem(
+                row,
+                2,
+                QtWidgets.QTableWidgetItem(
+                    "Ilimitado" if is_service else str(product.total_qty)
+                ),
+            )
+            self.table.setItem(
+                row,
+                3,
+                QtWidgets.QTableWidgetItem("—" if is_service else str(reserved_qty)),
+            )
+            self.table.setItem(
+                row,
+                4,
+                QtWidgets.QTableWidgetItem("—" if is_service else str(available_qty)),
+            )
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
         self._on_selection_changed()
@@ -264,13 +322,14 @@ class ProductsScreen(BaseScreen):
                 category=str(data["category"]),
                 total_qty=int(data["total_qty"]),
                 unit_price=float(data["unit_price"]),
+                kind=data["kind"],
                 active=True,
             )
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
-                "Erro",
-                "Não foi possível salvar o produto. Verifique os dados e tente novamente.",
+                TITLE_ERROR,
+                "Não foi possível salvar o item. Verifique os dados e tente novamente.",
             )
             return
         self._services.data_bus.data_changed.emit()
@@ -291,20 +350,21 @@ class ProductsScreen(BaseScreen):
                 category=str(data["category"]),
                 total_qty=int(data["total_qty"]),
                 unit_price=float(data["unit_price"]),
+                kind=data["kind"],
                 active=True,
             )
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
-                "Erro",
-                "Não foi possível atualizar o produto. Tente novamente.",
+                TITLE_ERROR,
+                "Não foi possível atualizar o item. Tente novamente.",
             )
             return
         if not updated:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
-                "O produto não foi encontrado para atualização.",
+                TITLE_WARNING,
+                "O item não foi encontrado para atualização.",
             )
         self._services.data_bus.data_changed.emit()
         self._load_products(self.search_input.text())
@@ -315,8 +375,8 @@ class ProductsScreen(BaseScreen):
             return
         response = QtWidgets.QMessageBox.question(
             self,
-            "Confirmação",
-            f"Tem certeza que deseja desativar o produto '{product.name}'?",
+            TITLE_CONFIRMATION,
+            f"Tem certeza que deseja desativar o item '{product.name}'?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
         )
         if response != QtWidgets.QMessageBox.Yes:
@@ -326,15 +386,15 @@ class ProductsScreen(BaseScreen):
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
-                "Erro",
-                "Não foi possível desativar o produto. Tente novamente.",
+                TITLE_ERROR,
+                "Não foi possível desativar o item. Tente novamente.",
             )
             return
         if not success:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
-                "O produto já estava desativado ou não foi encontrado.",
+                TITLE_WARNING,
+                "O item já estava desativado ou não foi encontrado.",
             )
         self._services.data_bus.data_changed.emit()
         self._load_products(self.search_input.text())

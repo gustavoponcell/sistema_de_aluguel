@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from rental_manager.db.connection import get_connection, transaction
 from rental_manager.db.schema import init_db
-from rental_manager.domain.models import Product
+from rental_manager.domain.models import Product, ProductKind
 from rental_manager.logging_config import configure_logging, get_logger
 from rental_manager.repositories.mappers import product_from_row
 
@@ -33,9 +33,11 @@ class ProductRepo:
         category: Optional[str],
         total_qty: int,
         unit_price: Optional[float],
+        kind: ProductKind,
         active: bool,
     ) -> Product:
         created_at = _now_iso()
+        kind_value = kind.value if isinstance(kind, ProductKind) else str(kind)
         try:
             with transaction(self._connection):
                 cursor = self._connection.execute(
@@ -45,17 +47,19 @@ class ProductRepo:
                         category,
                         total_qty,
                         unit_price,
+                        kind,
                         active,
                         created_at,
                         updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         name,
                         category,
                         total_qty,
                         unit_price,
+                        kind_value,
                         int(active),
                         created_at,
                         created_at,
@@ -71,6 +75,7 @@ class ProductRepo:
             category=category,
             total_qty=total_qty,
             unit_price=unit_price,
+            kind=ProductKind(kind_value),
             active=active,
             created_at=created_at,
             updated_at=created_at,
@@ -83,9 +88,11 @@ class ProductRepo:
         category: Optional[str],
         total_qty: int,
         unit_price: Optional[float],
+        kind: ProductKind,
         active: bool,
     ) -> Optional[Product]:
         updated_at = _now_iso()
+        kind_value = kind.value if isinstance(kind, ProductKind) else str(kind)
         try:
             with transaction(self._connection):
                 cursor = self._connection.execute(
@@ -96,6 +103,7 @@ class ProductRepo:
                         category = ?,
                         total_qty = ?,
                         unit_price = ?,
+                        kind = ?,
                         active = ?,
                         updated_at = ?
                     WHERE id = ?
@@ -105,6 +113,7 @@ class ProductRepo:
                         category,
                         total_qty,
                         unit_price,
+                        kind_value,
                         int(active),
                         updated_at,
                         product_id,
@@ -220,6 +229,7 @@ def _debug_run() -> None:
                 category="mesa",
                 total_qty=10,
                 unit_price=25.0,
+                kind=ProductKind.PRODUCT,
                 active=True,
             )
             repo.update(
@@ -228,6 +238,7 @@ def _debug_run() -> None:
                 category="mesa",
                 total_qty=12,
                 unit_price=27.5,
+                kind=ProductKind.PRODUCT,
                 active=True,
             )
             repo.soft_delete(product.id or 0)

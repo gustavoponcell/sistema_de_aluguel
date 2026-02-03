@@ -43,6 +43,7 @@ from rental_manager.paths import get_exports_dir
 from rental_manager.repositories import rental_repo
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
+from rental_manager.ui.strings import TERM_ORDER_PLURAL, TITLE_SUCCESS
 from rental_manager.ui.widgets import KpiCard
 
 
@@ -50,6 +51,7 @@ from rental_manager.ui.widgets import KpiCard
 class SummarySnapshot:
     report: rental_repo.FinanceReport
     rentals: list[rental_repo.RentalFinanceRow]
+    monthly_to_receive: list[rental_repo.MonthlyMetric]
 
 
 @dataclass(frozen=True)
@@ -93,7 +95,7 @@ class FinanceScreen(BaseScreen):
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Acompanhe valores recebidos, pendências e relatórios simples."
+            "Acompanhe receitas, pendências e indicadores do período."
         )
         subtitle.setWordWrap(True)
 
@@ -160,7 +162,7 @@ class FinanceScreen(BaseScreen):
             self._services.theme_manager, "Total a receber", "R$ 0,00"
         )
         self._count_card = KpiCard(
-            self._services.theme_manager, "Aluguéis no período", "0"
+            self._services.theme_manager, f"{TERM_ORDER_PLURAL} no período", "0"
         )
 
         cards_layout.addWidget(self._received_card)
@@ -181,6 +183,8 @@ class FinanceScreen(BaseScreen):
             )
             self._charts_notice.setVisible(True)
 
+        receivable_panel = self._create_table_panel("Pendências por mês")
+        summary_layout.addWidget(receivable_panel)
         summary_layout.addStretch()
 
     def _build_charts_tab(self) -> None:
@@ -200,44 +204,45 @@ class FinanceScreen(BaseScreen):
 
         scroll_area = QtWidgets.QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
         scroll_content = QtWidgets.QWidget()
         scroll_area.setWidget(scroll_content)
-        grid_layout = QtWidgets.QGridLayout(scroll_content)
-        grid_layout.setSpacing(12)
-        grid_layout.setColumnStretch(0, 1)
-        grid_layout.setColumnStretch(1, 1)
+        cards_layout = QtWidgets.QVBoxLayout(scroll_content)
+        cards_layout.setSpacing(16)
+        cards_layout.setContentsMargins(12, 12, 12, 12)
 
-        revenue_panel = self._create_chart_panel(
-            "Receita prevista por mês (últimos 12 meses)",
-            "revenue",
+        cards_layout.addWidget(
+            self._create_chart_panel(
+                "Receita por mês (últimos 12 meses)",
+                "revenue",
+            )
         )
-        rentals_panel = self._create_chart_panel(
-            "Aluguéis por mês (últimos 12 meses)",
-            "rentals",
+        cards_layout.addWidget(
+            self._create_chart_panel(
+                f"{TERM_ORDER_PLURAL} por mês (últimos 12 meses)",
+                "rentals",
+            )
         )
-        top_qty_panel = self._create_chart_panel(
-            "Top 10 produtos (quantidade)",
-            "top_qty",
+        cards_layout.addWidget(
+            self._create_chart_panel(
+                "Top 10 itens (quantidade)",
+                "top_qty",
+            )
         )
-        top_revenue_panel = self._create_chart_panel(
-            "Top 10 produtos (receita)",
-            "top_revenue",
+        cards_layout.addWidget(
+            self._create_chart_panel(
+                "Top 10 itens (receita)",
+                "top_revenue",
+            )
         )
-        receivable_panel = self._create_table_panel("A receber por mês")
-
-        grid_layout.addWidget(revenue_panel, 0, 0)
-        grid_layout.addWidget(rentals_panel, 0, 1)
-        grid_layout.addWidget(top_qty_panel, 1, 0)
-        grid_layout.addWidget(top_revenue_panel, 1, 1)
-        grid_layout.addWidget(receivable_panel, 2, 0, 1, 2)
+        cards_layout.addStretch()
 
         charts_layout.addWidget(scroll_area)
-        charts_layout.addStretch()
 
     def _build_reports_tab(self) -> None:
         reports_layout = QtWidgets.QVBoxLayout(self._reports_tab)
 
-        table_group = QtWidgets.QGroupBox("Aluguéis no período")
+        table_group = QtWidgets.QGroupBox(f"{TERM_ORDER_PLURAL} no período")
         table_layout = QtWidgets.QVBoxLayout(table_group)
         self._table = QtWidgets.QTableWidget(0, 9)
         self._table.setHorizontalHeaderLabels(
@@ -288,9 +293,17 @@ class FinanceScreen(BaseScreen):
         start_date, end_date = self._current_period()
         self._load_charts_data(start_date, end_date, force=False)
 
-    def _create_chart_panel(self, title: str, key: str) -> QtWidgets.QGroupBox:
-        group = QtWidgets.QGroupBox(title)
-        layout = QtWidgets.QVBoxLayout(group)
+    def _create_chart_panel(self, title: str, key: str) -> QtWidgets.QFrame:
+        card = QtWidgets.QFrame()
+        card.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        card.setFrameShadow(QtWidgets.QFrame.Raised)
+        card_layout = QtWidgets.QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(12)
+
+        title_label = QtWidgets.QLabel(title)
+        title_label.setStyleSheet("font-size: 16px; font-weight: 600;")
+        card_layout.addWidget(title_label)
 
         stack = QtWidgets.QStackedLayout()
         empty_label = QtWidgets.QLabel("Sem dados")
@@ -304,8 +317,12 @@ class FinanceScreen(BaseScreen):
         }
 
         if self._chart_backend == "matplotlib" and FigureCanvas and Figure:
-            figure = Figure(figsize=(5, 3))
+            figure = Figure(figsize=(10, 4))
             canvas = FigureCanvas(figure)
+            canvas.setMinimumHeight(340)
+            canvas.setSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+            )
             axis = figure.add_subplot(111)
             stack.addWidget(canvas)
             stack.addWidget(empty_label)
@@ -322,6 +339,7 @@ class FinanceScreen(BaseScreen):
             chart.setAnimationOptions(QChart.SeriesAnimations)
             chart_view = QChartView(chart)
             chart_view.setRenderHint(QtGui.QPainter.Antialiasing)
+            chart_view.setMinimumHeight(340)
             stack.addWidget(chart_view)
             stack.addWidget(empty_label)
             panel.update(
@@ -337,16 +355,16 @@ class FinanceScreen(BaseScreen):
             )
             stack.addWidget(empty_label)
 
-        layout.addLayout(stack)
+        card_layout.addLayout(stack)
         self._chart_panels[key] = panel
-        return group
+        return card
 
     def _create_table_panel(self, title: str) -> QtWidgets.QGroupBox:
         group = QtWidgets.QGroupBox(title)
         layout = QtWidgets.QVBoxLayout(group)
 
         self._receivable_table = QtWidgets.QTableWidget(0, 2)
-        self._receivable_table.setHorizontalHeaderLabels(["Mês", "A receber"])
+        self._receivable_table.setHorizontalHeaderLabels(["Mês", "Pendência"])
         self._receivable_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self._receivable_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self._receivable_table.verticalHeader().setVisible(False)
@@ -385,6 +403,9 @@ class FinanceScreen(BaseScreen):
         self._count_card.set_value(str(snapshot.report.rentals_count))
 
         self._populate_table(self._rentals)
+        _, months, _ = self._chart_months(end_date)
+        receivable_values = self._month_values(months, snapshot.monthly_to_receive)
+        self._populate_receivable_table(months, receivable_values)
         if self._charts_loaded:
             self._load_charts_data(start_date, end_date, force=force)
 
@@ -399,7 +420,13 @@ class FinanceScreen(BaseScreen):
         rentals = rental_repo.list_rentals_by_period(
             start_date, end_date, connection=self._services.connection
         )
-        return SummarySnapshot(report=report, rentals=rentals)
+        chart_start_date, _, _ = self._chart_months(end_date)
+        monthly_to_receive = rental_repo.list_monthly_to_receive(
+            chart_start_date, end_date, connection=self._services.connection
+        )
+        return SummarySnapshot(
+            report=report, rentals=rentals, monthly_to_receive=monthly_to_receive
+        )
 
     def _load_charts_data(
         self, start_date: str, end_date: str, *, force: bool
@@ -702,7 +729,7 @@ class FinanceScreen(BaseScreen):
 
         QtWidgets.QMessageBox.information(
             self,
-            "Exportação concluída",
+            TITLE_SUCCESS,
             f"Arquivo salvo em:\n{filepath}",
         )
 

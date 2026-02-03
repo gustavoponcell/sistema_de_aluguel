@@ -5,25 +5,26 @@
 ## Sumário
 
 1. [Visão geral](#1-visão-geral)
-2. [Instalação e execução no Windows](#2-instalação-e-execução-no-windows)
-3. [Arquitetura do projeto (alto nível)](#3-arquitetura-do-projeto-alto-nível)
-4. [Banco de dados (SQLite)](#4-banco-de-dados-sqlite)
-5. [Regras de negócio (detalhado)](#5-regras-de-negócio-detalhado)
-6. [Interface (tela por tela)](#6-interface-tela-por-tela)
-7. [Recibo/Contrato (PDF)](#7-recibocontrato-pdf)
-8. [Backup e segurança](#8-backup-e-segurança)
-9. [Empacotamento (PyInstaller)](#9-empacotamento-pyinstaller)
-10. [Troubleshooting (muito prático)](#10-troubleshooting-muito-prático)
-11. [Checklist de uso (manual para usuário leigo)](#11-checklist-de-uso-manual-para-usuário-leigo)
-12. [Planejado / Não implementado ainda](#12-planejado--não-implementado-ainda)
+2. [Terminologia do sistema](#2-terminologia-do-sistema)
+3. [Instalação e execução no Windows](#3-instalação-e-execução-no-windows)
+4. [Arquitetura do projeto (alto nível)](#4-arquitetura-do-projeto-alto-nível)
+5. [Banco de dados (SQLite)](#5-banco-de-dados-sqlite)
+6. [Regras de negócio (detalhado)](#6-regras-de-negócio-detalhado)
+7. [Interface (tela por tela)](#7-interface-tela-por-tela)
+8. [Recibo/Contrato (PDF)](#8-recibocontrato-pdf)
+9. [Backup e segurança](#9-backup-e-segurança)
+10. [Empacotamento (PyInstaller)](#10-empacotamento-pyinstaller)
+11. [Troubleshooting (muito prático)](#11-troubleshooting-muito-prático)
+12. [Checklist de uso (manual para usuário leigo)](#12-checklist-de-uso-manual-para-usuário-leigo)
+13. [Planejado / Não implementado ainda](#13-planejado--não-implementado-ainda)
 
 ---
 
 ## 1) Visão geral
 
 **O que o sistema faz**
-- O RentalManager é um aplicativo desktop para **gestão de aluguéis de itens para eventos** (cadeiras, mesas, brinquedos, som etc.).
-- Permite cadastrar produtos e clientes, criar e gerenciar aluguéis, acompanhar agenda e financeiro, gerar PDF de contrato/recibo e fazer backup/restauração do banco local.
+- O RentalManager é um aplicativo desktop para **gestão de pedidos de locação de itens para eventos** (cadeiras, mesas, brinquedos, som etc.).
+- Permite cadastrar produtos e clientes, criar e gerenciar pedidos, acompanhar agenda e financeiro, gerar PDF de contrato/recibo e fazer backup/restauração do banco local.
 
 **Público-alvo**
 - Usuário leigo, uso em **1 PC local**, com foco em simplicidade.
@@ -36,16 +37,27 @@
 
 ---
 
-## 2) Instalação e execução no Windows
+## 2) Terminologia do sistema
 
-### 2.1 Pré-requisitos
+- **Pedido**: registro completo de uma locação, com cliente, datas, itens e pagamento.
+- **Produto**: item físico controlado por estoque (ex.: mesas, cadeiras).
+- **Serviço**: mão de obra ou serviço agregado (ex.: montagem, entrega). Não bloqueia estoque.
+- **Disponível**: quantidade livre para novas datas.
+- **Em uso**: quantidade já alocada em pedidos no período.
+- **Pendência**: valor previsto para recebimento.
+
+> A terminologia é usada nas telas de Estoque, Agenda e Financeiro para manter o tom profissional.
+
+## 3) Instalação e execução no Windows
+
+### 3.1 Pré-requisitos
 - **Python** instalado no Windows (recomendado **3.11+**).
   - O projeto usa PySide6 e bibliotecas atuais; versões antigas podem falhar ao instalar dependências.
 - A opção **“Add Python to PATH”** deve estar marcada na instalação do Python.
 
 > Se o Python não estiver no PATH, o `run_app.bat` não conseguirá iniciar o aplicativo.
 
-### 2.2 Estrutura do projeto (src layout)
+### 3.2 Estrutura do projeto (src layout)
 O código está organizado no padrão **src layout**:
 
 ```
@@ -65,7 +77,7 @@ O código está organizado no padrão **src layout**:
         └── utils/
 ```
 
-### 2.3 Como rodar pelo `run_app.bat`
+### 3.3 Como rodar pelo `run_app.bat`
 O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 1. Vai para a pasta do projeto.
 2. Cria um **virtualenv** em `.venv` (se não existir).
@@ -75,7 +87,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 6. Executa o app via `python -m rental_manager.app`.
 7. **Redireciona toda saída para `run_app.log`.**
 
-### 2.4 Onde fica o log e como interpretar erros comuns
+### 3.4 Onde fica o log e como interpretar erros comuns
 - **Log do launcher**: `run_app.log` na raiz do projeto.
   - Use este log quando o app **nem abre**.
   - Procure por mensagens `[ERRO]` ou falhas ao instalar dependências.
@@ -84,7 +96,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
   - Use quando o app abriu, mas **algo falhou dentro do app**.
   - Logs rotacionam automaticamente (até 3 arquivos, ~1 MB cada).
 
-### 2.5 Criar atalho na área de trabalho
+### 3.5 Criar atalho na área de trabalho
 1. Clique com o botão direito em `run_app.bat` → **Enviar para > Área de trabalho (criar atalho)**.
 2. Clique com o botão direito no atalho → **Propriedades**.
 3. Em **Iniciar em**, informe a pasta do projeto, por exemplo:
@@ -95,9 +107,9 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 
 ---
 
-## 3) Arquitetura do projeto (alto nível)
+## 4) Arquitetura do projeto (alto nível)
 
-### 3.1 Pastas e responsabilidades
+### 4.1 Pastas e responsabilidades
 
 - `src/rental_manager/ui/` → **Interface (PySide6)**: telas, diálogos, navegação.
 - `src/rental_manager/services/` → **Regras de negócio**: validações, estoque, pagamentos.
@@ -106,11 +118,11 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `src/rental_manager/domain/` → **Modelos (dataclasses e enums)**.
 - `src/rental_manager/utils/` → utilitários (backup, PDF, tema, config).
 
-### 3.2 Ponto de entrada
+### 4.2 Ponto de entrada
 - Entrada principal: `python -m rental_manager.app`.
 - `app.py` configura logs, banco, tema e abre a `MainWindow`.
 
-### 3.3 Fluxo principal de inicialização
+### 4.3 Fluxo principal de inicialização
 1. Configura logs.
 2. Garante pastas do AppData.
 3. Aplica migrações do banco (`apply_migrations`).
@@ -119,14 +131,14 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 6. Instancia repos/serviços (CustomerRepo, ProductRepo, RentalService etc.).
 7. Abre `MainWindow`.
 
-### 3.4 Padrão adotado
+### 4.4 Padrão adotado
 - **UI + Services + Repository**.
   - UI chama Services.
   - Services chamam Repositories.
   - Repositories fazem SQL.
 - Modelos de domínio (dataclasses) ficam em `domain/models.py`.
 
-### 3.5 Como as telas se atualizam
+### 4.5 Como as telas se atualizam
 - Existe um **DataEventBus** com sinal `data_changed`.
 - Quando dados são alterados, as telas recebem sinal e **se atualizam automaticamente**.
 - Se a tela não estiver visível, ela marca refresh pendente e atualiza ao aparecer.
@@ -134,19 +146,19 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 
 ---
 
-## 4) Banco de dados (SQLite)
+## 5) Banco de dados (SQLite)
 
-### 4.1 Local do arquivo `.db`
+### 5.1 Local do arquivo `.db`
 - O banco fica em:
   - `%APPDATA%\RentalManager\rental_manager.db`
 
-### 4.2 Criação/atualização
+### 5.2 Criação/atualização
 - O banco é criado automaticamente na primeira execução.
 - Existe **versionamento do schema** via tabela `app_meta` e migrações numeradas.
 - Cada migração é aplicada **apenas uma vez** e o número atual fica em `app_meta.schema_version`.
 - Ao iniciar o app, o sistema chama `apply_migrations` para criar/atualizar o schema.
 
-### 4.3 Tabelas e colunas principais
+### 5.3 Tabelas e colunas principais
 
 #### `products`
 - `id` (PK)
@@ -154,6 +166,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `category` (TEXT)
 - `total_qty` (INTEGER)
 - `unit_price` (REAL)
+- `kind` (TEXT: `product` ou `service`)
 - `active` (INTEGER 0/1)
 - `created_at`, `updated_at`
 
@@ -204,7 +217,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 
 > Pagamentos ficam registrados em `payments` e o campo `rentals.paid_value` é derivado da soma dos pagamentos.
 
-### 4.4 Índices
+### 5.4 Índices
 - `idx_rentals_event_date`
 - `idx_rentals_start_date`
 - `idx_rentals_end_date`
@@ -213,7 +226,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `idx_rental_items_rental_id`
 - `idx_rental_items_product_id`
 
-### 4.5 Constraints e integridade
+### 5.5 Constraints e integridade
 - **Foreign Keys** habilitadas (`PRAGMA foreign_keys = ON`).
 - `products.name` é `UNIQUE`.
 - `CHECK constraints` garantem valores válidos:
@@ -226,9 +239,9 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 
 ---
 
-## 5) Regras de negócio (detalhado)
+## 6) Regras de negócio (detalhado)
 
-### 5.1 Status de aluguel
+### 6.1 Status de pedido
 - `draft` → **Rascunho**
 - `confirmed` → **Confirmado**
 - `canceled` → **Cancelado**
@@ -238,60 +251,60 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - Apenas **confirmed** e **completed** bloqueiam estoque.
 - **draft** e **canceled** não bloqueiam.
 
-### 5.2 Pagamento
+### 6.2 Pagamento
 - `unpaid` → **Pendente**
 - `partial` → **Parcial**
 - `paid` → **Pago**
 
 **Cálculo do status de pagamento**
-- O total pago do aluguel é a **soma dos registros em `payments`**.
+- O total pago do pedido é a **soma dos registros em `payments`**.
 - `paid_value` em `rentals` é um campo derivado (atualizado ao inserir/editar/excluir pagamentos).
 - Regras:
   - `paid_total <= 0` → `unpaid`
   - `0 < paid_total < total_value` → `partial`
   - `paid_total >= total_value` → `paid`
 
-### 5.3 Cálculo financeiro
+### 6.3 Cálculo financeiro
 **Relatório financeiro por período**:
-- A lista de aluguéis usa `event_date` como referência do período.
+- A lista de pedidos usa `event_date` como referência do período.
 - **Total recebido**: soma dos pagamentos em `payments` cujo `paid_at` está dentro do período.
   - Pagamentos sem `paid_at` não entram no total recebido do período.
-- **Total a receber**: soma de `(total_value - paid_total)` **apenas para aluguéis `confirmed`** no período.
-- Aluguéis com status `canceled` **não entram** no relatório.
+- **Total a receber**: soma de `(total_value - paid_total)` **apenas para pedidos `confirmed`** no período.
+- Pedidos com status `canceled` **não entram** no relatório.
 
-### 5.4 Estoque por data (crítico)
+### 6.4 Estoque por data (crítico)
 
-**Definição de “na rua” vs “comigo”**
-- **Na rua** = quantidade reservada em aluguéis que bloqueiam estoque.
-- **Comigo** = `total_qty - reservado` (não pode ser negativo).
+**Definição de “em uso” vs “disponível”**
+- **Em uso** = quantidade reservada em pedidos que bloqueiam estoque.
+- **Disponível** = `total_qty - reservado` (não pode ser negativo).
 
 **Regra de ocupação por intervalo**
-- Um aluguel bloqueia estoque no intervalo:
+- Um pedido bloqueia estoque no intervalo:
 
 ```
 start_date <= D < end_date
 ```
 
 - A data de término é **exclusiva**.
-- Isso permite que um aluguel termine no mesmo dia em que outro começa.
+- Isso permite que um pedido termine no mesmo dia em que outro começa.
 
 **Exemplo rápido**
-- Aluguel A: início 10/05, fim 12/05 → bloqueia **10/05 e 11/05**.
-- Aluguel B: início 12/05, fim 13/05 → **permitido** (não há sobreposição).
+- Pedido A: início 10/05, fim 12/05 → bloqueia **10/05 e 11/05**.
+- Pedido B: início 12/05, fim 13/05 → **permitido** (não há sobreposição).
 
 **Quais status bloqueiam estoque**
 - `draft` (Rascunho), `confirmed` (Confirmado) e `completed` (Concluído), que são os
   status reais do app.
 
-**Validação ao criar/editar aluguel**
+**Validação ao criar/editar pedido**
 - Para cada item e cada dia do intervalo, verifica se há quantidade disponível.
 - Se faltar estoque em qualquer dia, a operação é bloqueada mostrando o **primeiro conflito**
   com produto, data, disponível e solicitado.
 
-**Edição de aluguel existente**
-- Na validação de edição, o sistema **exclui o próprio aluguel** do cálculo (para não bloquear a si mesmo).
+**Edição de pedido existente**
+- Na validação de edição, o sistema **exclui o próprio pedido** do cálculo (para não bloquear a si mesmo).
 
-### 5.5 Endereço e entrega
+### 6.5 Endereço e entrega
 - Campo `address` é texto livre.
 - Usado:
   - Na **Agenda** (resumo de endereço).
@@ -299,23 +312,23 @@ start_date <= D < end_date
 
 ---
 
-## 6) Interface (tela por tela)
+## 7) Interface (tela por tela)
 
-### 6.1 Tela: **Novo Aluguel**
+### 7.1 Tela: **Novo Pedido**
 **Objetivo**
-- Criar um aluguel com cliente, datas, itens e valores.
+- Criar um pedido com cliente, datas, itens e valores.
 
 **Componentes**
 - Seletor de cliente (combo + botão “Novo Cliente”).
 - Datas: evento, início, fim.
 - Campo de endereço.
-- Lista de itens com produto, quantidade, preço unitário.
+- Lista de itens com item, quantidade, preço unitário.
 - Tabela de itens e total.
-- Botões: “Salvar como rascunho”, “Confirmar aluguel”.
+- Botões: “Salvar como rascunho”, “Confirmar pedido”.
 
 **Ações e comportamento**
 - Adicionar item: valida quantidade, preço e estoque no período.
-- Confirmar aluguel: salva e depois muda status para `confirmed`.
+- Confirmar pedido: salva e depois muda status para `confirmed`.
 - Salvar rascunho: salva como `draft`.
 
 **Validações e mensagens**
@@ -335,12 +348,12 @@ start_date <= D < end_date
 
 ---
 
-### 6.2 Tela: **Agenda** (Aluguéis)
+### 7.2 Tela: **Agenda** (Pedidos)
 **Objetivo**
-- Listar e gerenciar os aluguéis do período.
+- Listar e gerenciar os pedidos do período.
 
 **Componentes**
-- Cartão “Aluguéis de hoje”.
+- Cartão “Pedidos de hoje”.
 - Filtros: período, status, pagamento, busca.
 - Tabela com datas, cliente, endereço, status, total e pago.
 - Botões: detalhes, editar, cancelar, concluir, registrar pagamento, gerar PDF.
@@ -363,19 +376,20 @@ start_date <= D < end_date
 
 ---
 
-### 6.3 Tela: **Estoque / Produtos**
+### 7.3 Tela: **Estoque / Produtos**
 **Objetivo**
-- Cadastrar e gerenciar produtos e estoque.
+- Cadastrar e gerenciar produtos e serviços.
 
 **Componentes**
-- Data de referência para calcular “na rua”.
+- Data de referência para calcular “em uso”.
 - Busca por nome.
-- Tabela: produto, total, na rua, comigo.
+- Tabela: item, tipo, total, em uso, disponível.
 - Botões: novo, editar, desativar.
 
 **Ações e comportamento**
-- “Na rua” é a soma das reservas de aluguéis em rascunho/confirmados/concluídos na data.
-- “Comigo” = `total_qty - na_rua`.
+- “Em uso” é a soma das reservas de pedidos em rascunho/confirmados/concluídos na data.
+- “Disponível” = `total_qty - em_uso`.
+- Serviços são cadastrados com capacidade alta e não bloqueiam estoque.
 
 **Validações**
 - Nome e categoria obrigatórios.
@@ -383,7 +397,7 @@ start_date <= D < end_date
 
 ---
 
-### 6.4 Tela: **Clientes**
+### 7.4 Tela: **Clientes**
 **Objetivo**
 - Cadastrar e editar clientes.
 
@@ -397,38 +411,38 @@ start_date <= D < end_date
 
 ---
 
-### 6.5 Tela: **Financeiro**
+### 7.5 Tela: **Financeiro**
 **Objetivo**
 - Ver resumo financeiro por período.
 
 **Componentes**
 - Filtro por data (período baseado em `rentals.start_date`).
 - Abas: **Resumo**, **Gráficos** e **Relatórios**.
-- Cards: total recebido, total a receber, quantidade de aluguéis.
+- Cards: total recebido, total a receber, quantidade de pedidos.
 - Gráficos e rankings (offline) ficam na aba **Gráficos**.
-- Tabela com aluguéis do período + botão de exportação CSV nos relatórios.
+- Tabela com pedidos do período + botão de exportação CSV nos relatórios.
 
 **Regras**
 - **Base temporal**: o período da tela usa `rentals.start_date` (datas ISO `YYYY-MM-DD`).
 - **Receita prevista por mês**: soma `rentals.total_value` agrupado por mês de `start_date`.
-- **Aluguéis por mês**: contagem por mês de `start_date`.
+- **Pedidos por mês**: contagem por mês de `start_date`.
 - **Recebido**:
   - Se a tabela `payments` existir: soma `payments.amount` por `paid_at` no período.
   - Se não existir: usa `rentals.paid_value` do período (agrupado por `start_date`).
-- **A receber**: soma de `(total_value - paid_value)` para aluguéis confirmados, por mês de `start_date`.
+- **A receber**: soma de `(total_value - paid_value)` para pedidos confirmados, por mês de `start_date`.
 - **Ranking de produtos (quantidade)**: soma `rental_items.qty` por produto no período.
 - **Ranking de produtos (receita)**:
   - Usa `rental_items.unit_price` quando disponível.
   - Caso contrário, usa `products.unit_price`.
   - Se nenhum preço estiver cadastrado, o gráfico é ocultado com aviso ao usuário.
-- Ignora aluguéis cancelados.
+- Ignora pedidos cancelados.
 - CSV salvo em `%APPDATA%\RentalManager\exports`.
 - Se Matplotlib não estiver disponível, o app tenta QtCharts. Se ambos falharem, os gráficos são ocultados com aviso; KPIs e tabelas continuam funcionando.
 - Gráficos são carregados sob demanda (lazy loading) ao abrir a aba **Gráficos**, com cache por período e atualização ao alterar o filtro ou clicar em **Atualizar**.
 
 ---
 
-### 6.6 Tela: **Backup**
+### 7.6 Tela: **Backup**
 **Objetivo**
 - Criar e restaurar backups do banco SQLite.
 
@@ -446,13 +460,13 @@ start_date <= D < end_date
 
 ---
 
-### 6.7 Menu: **Exibir > Tema**
+### 7.7 Menu: **Exibir > Tema**
 - Permite escolher **Claro**, **Escuro** ou **Sistema**.
 - Preferência salva em `%APPDATA%\RentalManager\config.json`.
 
 ---
 
-## 7) Recibo/Contrato (PDF)
+## 8) Recibo/Contrato (PDF)
 
 **Onde gera**
 - Na tela **Agenda**, botões **“Gerar contrato”** e **“Gerar recibo”**.
@@ -460,16 +474,16 @@ start_date <= D < end_date
 **O que contém**
 - Dados do locador (configurados em `config.py`).
 - Dados do cliente (nome e telefone).
-- Datas do aluguel e endereço.
+- Datas do pedido e endereço.
 - Itens locados, valores e saldo.
 - Termos e campo para assinatura.
 
 **Onde é salvo**
 - `%APPDATA%\RentalManager\pdfs`.
-- Nome do arquivo: `aluguel_<ID>_<timestamp>_contract.pdf` ou `_receipt.pdf`.
+- Nome do arquivo: `pedido_<ID>_<timestamp>_contract.pdf` ou `_receipt.pdf`.
 
 **Como reemitir / abrir o último**
-- Use os botões **“Abrir último contrato”** e **“Abrir último recibo”** no aluguel selecionado.
+- Use os botões **“Abrir último contrato”** e **“Abrir último recibo”** no pedido selecionado.
 - Se não houver documento gerado, os botões ficam desabilitados com dica de motivo.
 - Ao regerar, o arquivo é atualizado na pasta `pdfs` e o sistema registra o novo caminho e checksum.
 
@@ -479,19 +493,19 @@ start_date <= D < end_date
 
 ---
 
-## 8) Backup e segurança
+## 9) Backup e segurança
 
-### 8.1 Estratégia de backup
+### 9.1 Estratégia de backup
 - **Manual** pela tela de backup.
 - **Automático ao iniciar** (opcional, via checkbox).
 - **Retenção automática**: mantém somente os últimos 30 backups e remove os mais antigos.
 
-### 8.2 Onde salva
+### 9.2 Onde salva
 - `%APPDATA%\RentalManager\backups`.
 - Nome: `rental_manager_YYYYMMDD_HHMMSS.db`.
 - Backup de segurança antes da restauração: `rental_manager_YYYYMMDD_HHMMSS_pre_restore.db`.
 
-### 8.3 Restauração (passo a passo)
+### 9.3 Restauração (passo a passo)
 1. Abra a tela **Backup**.
 2. Selecione um arquivo da lista.
 3. Clique em **Restaurar**.
@@ -501,11 +515,11 @@ start_date <= D < end_date
 7. O sistema roda `PRAGMA integrity_check` e informa o resultado na tela.
 8. O app fechará para concluir a restauração.
 
-### 8.4 Considerações de segurança
+### 9.4 Considerações de segurança
 - Sem login → qualquer pessoa com acesso ao PC pode ver dados.
 - Banco local → proteja o computador com senha do Windows.
 
-### 8.5 Boas práticas
+### 9.5 Boas práticas
 - Copie **sempre**:
   - O `.db` principal.
   - A pasta `pdfs/`.
@@ -513,9 +527,9 @@ start_date <= D < end_date
 
 ---
 
-## 9) Empacotamento (PyInstaller)
+## 10) Empacotamento (PyInstaller)
 
-### 9.1 Como gerar .exe
+### 10.1 Como gerar .exe
 - Script pronto em `build_windows.ps1`:
 
 ```powershell
@@ -529,29 +543,29 @@ start_date <= D < end_date
 pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
 ```
 
-### 9.2 Onde fica o executável
+### 10.2 Onde fica o executável
 - `dist\RentalManager\RentalManager.exe`
 
-### 9.2.1 Pasta de dados do usuário
+### 10.2.1 Pasta de dados do usuário
 - `%APPDATA%\RentalManager\`
   - `rental_manager.db`
   - `pdfs\`
   - `backups\`
   - `logs\`
 
-### 9.3 Limitações comuns / troubleshooting
+### 10.3 Limitações comuns / troubleshooting
 - Algumas máquinas podem bloquear execução por **SmartScreen**.
 - Se faltar DLLs do Qt, é preciso revisar a instalação do PyInstaller.
 - Certifique-se de que o app grava em `%APPDATA%` e não na pasta do executável.
 
-### 9.4 Distribuição
+### 10.4 Distribuição
 1. Copie a pasta `dist\RentalManager` completa.
 2. Execute `RentalManager.exe` no PC de destino.
 3. Para criar atalho: botão direito no `RentalManager.exe` → **Enviar para > Área de trabalho (criar atalho)**.
 
 ---
 
-## 10) Troubleshooting (muito prático)
+## 11) Troubleshooting (muito prático)
 
 **App não abre**
 - Verifique `run_app.log`.
@@ -581,25 +595,25 @@ pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-fi
 
 ---
 
-## 11) Checklist de uso (manual para usuário leigo)
+## 12) Checklist de uso (manual para usuário leigo)
 
 **Fluxo recomendado**
-1. Cadastrar produtos com estoque total.
+1. Cadastrar produtos e serviços com estoque total/capacidade.
 2. Cadastrar cliente.
-3. Criar aluguel com itens e datas.
-4. Confirmar aluguel.
+3. Criar pedido com itens e datas.
+4. Confirmar pedido.
 5. Registrar pagamento.
 6. Emitir recibo/contrato.
 7. Acompanhar agenda e financeiro.
 
 **Dicas de prevenção de erro**
 - Sempre defina **data de devolução posterior** ao início.
-- Verifique estoque antes de confirmar um aluguel grande.
+- Verifique estoque antes de confirmar um pedido grande.
 - Use o financeiro para acompanhar pendências.
 
 ---
 
-## 12) Planejado / Não implementado ainda
+## 13) Planejado / Não implementado ainda
 
 - Tela de **Configurações** dedicada (hoje só há tema no menu e backup na tela própria).
 - Migrações futuras além das básicas (apenas constraints e versionamento simples já existem).
@@ -617,7 +631,7 @@ pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-fi
 - Quantidade total: 200
 - Preço padrão: R$ 4,00
 
-### Exemplo de aluguel
+### Exemplo de pedido
 - Cliente: “Maria Oliveira”
 - Evento: 15/03/2025
 - Início: 14/03/2025
@@ -628,4 +642,4 @@ pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-fi
   - 10 mesas (R$ 12,00)
 
 ### Exemplo de recibo
-- Recibo gerado em: `%APPDATA%\RentalManager\pdfs\aluguel_5_20250310_140530_receipt.pdf`
+- Recibo gerado em: `%APPDATA%\RentalManager\pdfs\pedido_5_20250310_140530_receipt.pdf`

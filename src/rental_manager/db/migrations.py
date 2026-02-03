@@ -258,6 +258,17 @@ MIGRATIONS: list[Migration] = [
             ON rentals(created_at);
         """,
     ),
+    Migration(
+        version=6,
+        script="""
+        ALTER TABLE products
+            ADD COLUMN kind TEXT NOT NULL DEFAULT 'product';
+
+        UPDATE products
+        SET kind = 'product'
+        WHERE kind IS NULL OR kind = '';
+        """,
+    ),
 ]
 
 

@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtWidgets
 from rental_manager.domain.models import Customer
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
+from rental_manager.ui.strings import TITLE_ERROR, TITLE_WARNING
 
 
 class CustomerDialog(QtWidgets.QDialog):
@@ -66,7 +67,7 @@ class CustomerDialog(QtWidgets.QDialog):
         if not name:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Atenção",
+                TITLE_WARNING,
                 "Informe o nome do cliente.",
             )
             return False
@@ -100,7 +101,7 @@ class CustomersScreen(BaseScreen):
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Cadastre clientes e acesse rapidamente o histórico de aluguéis."
+            "Cadastre clientes e acompanhe o histórico de pedidos."
         )
         subtitle.setWordWrap(True)
 
@@ -163,7 +164,7 @@ class CustomersScreen(BaseScreen):
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
-                "Erro",
+                TITLE_ERROR,
                 "Não foi possível carregar os clientes.",
             )
             return

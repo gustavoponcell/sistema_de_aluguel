@@ -45,7 +45,7 @@ class RentalService:
             rental_id, connection=self._connection
         )
         if not rental_data:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
+            raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return rental_data
 
     def _validate_inventory(
@@ -72,7 +72,7 @@ class RentalService:
             end = date.fromisoformat(end_date)
         except ValueError as exc:
             raise ValidationError(
-                "Datas inválidas. Verifique o início e o fim do aluguel."
+                "Datas inválidas. Verifique o início e o fim do pedido."
             ) from exc
         if end == start:
             end = start + timedelta(days=1)
@@ -147,7 +147,7 @@ class RentalService:
             connection=self._connection,
         )
         if not rental:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
+            raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return rental
 
     def confirm_rental(self, rental_id: int) -> bool:
@@ -163,7 +163,7 @@ class RentalService:
             rental_id, RentalStatus.CONFIRMED, connection=self._connection
         )
         if not updated:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
+            raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return True
 
     def cancel_rental(self, rental_id: int) -> bool:
@@ -171,7 +171,7 @@ class RentalService:
             rental_id, RentalStatus.CANCELED, connection=self._connection
         )
         if not updated:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
+            raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return True
 
     def complete_rental(self, rental_id: int) -> bool:
@@ -179,5 +179,5 @@ class RentalService:
             rental_id, RentalStatus.COMPLETED, connection=self._connection
         )
         if not updated:
-            raise NotFoundError(f"Aluguel {rental_id} não encontrado.")
+            raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return True

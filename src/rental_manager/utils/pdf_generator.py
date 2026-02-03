@@ -109,7 +109,7 @@ def generate_rental_pdf(
             ]
         )
     )
-    elements.append(Paragraph("Dados do aluguel", styles["SectionTitle"]))
+    elements.append(Paragraph("Dados do pedido", styles["SectionTitle"]))
     elements.append(dates_table)
     elements.append(Spacer(1, 12))
 
@@ -164,7 +164,7 @@ def generate_rental_pdf(
 
     terms = (
         "O cliente se responsabiliza pela guarda e conservação dos itens durante o "
-        "período do aluguel, devendo devolver todos os itens limpos e sem danos na "
+        "período do pedido, devendo devolver todos os itens limpos e sem danos na "
         "data combinada. Em caso de avarias ou perda, os custos de reposição serão "
         "cobrados conforme orçamento. Alterações de data devem ser comunicadas com "
         "antecedência."
