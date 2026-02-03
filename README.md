@@ -89,13 +89,17 @@ Use o script PowerShell já configurado:
 .\build_windows.ps1
 ```
 
-O script gera automaticamente um ícone mínimo em `assets\icon.ico` caso o arquivo não exista.
-Para personalizar, substitua o ícone por um `.ico` próprio.
+O script:
+- Usa o entrypoint `src\rental_manager\__main__.py` para garantir abertura do app.
+- Aplica o ícone e os metadados de versão (arquivo `tools\windows_version_info.txt`).
+- Gera automaticamente um ícone mínimo em `assets\icon.ico` caso o arquivo não exista.
+
+Para personalizar, substitua o ícone por um `.ico` próprio e edite o arquivo de versão.
 
 Ou execute o comando diretamente:
 
 ```powershell
-pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/app.py
+pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
 ```
 
 ### Onde fica o executável
@@ -106,10 +110,26 @@ O executável principal será gerado em:
 dist\RentalManager\RentalManager.exe
 ```
 
+### Pasta de dados do usuário
+
+Ao iniciar, o app cria automaticamente a pasta de dados em:
+
+```
+%APPDATA%\RentalManager\
+```
+
+Lá ficam o banco (`rental_manager.db`), PDFs (`pdfs\`), backups (`backups\`) e logs (`logs\`).
+
 ### Como instalar (uso offline)
 
 1) Copie a pasta inteira `dist\RentalManager` para o computador de destino.
 2) Execute `RentalManager.exe` diretamente (não requer instalação).
+
+### Como criar um atalho
+
+1) Clique com o botão direito em `RentalManager.exe`.
+2) Selecione **Enviar para > Área de trabalho (criar atalho)**.
+3) (Opcional) Renomeie o atalho para “Rental Manager”.
 
 ### Checklist pós-build
 
