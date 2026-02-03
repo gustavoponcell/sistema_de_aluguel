@@ -31,6 +31,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stack = QtWidgets.QStackedWidget()
         self._config_path = get_config_path()
         self._theme_settings = load_theme_settings(self._config_path)
+        self._finance_screen: FinanceScreen | None = None
         self.setWindowTitle("RentalManager")
         self.resize(1024, 640)
         self._build_ui()
@@ -56,12 +57,14 @@ class MainWindow(QtWidgets.QMainWindow):
         button_group = QtWidgets.QButtonGroup(self)
         button_group.setExclusive(True)
 
+        finance_screen = FinanceScreen(self._services)
+        self._finance_screen = finance_screen
         screens = [
             ("Novo Aluguel", NewRentalScreen(self._services)),
             ("Agenda", RentalsScreen(self._services)),
             ("Estoque", ProductsScreen(self._services)),
             ("Clientes", CustomersScreen(self._services)),
-            ("Financeiro", FinanceScreen(self._services)),
+            ("Financeiro", finance_screen),
             ("Backup", BackupScreen(self._services)),
         ]
 
@@ -153,3 +156,5 @@ class MainWindow(QtWidgets.QMainWindow):
         app = QtWidgets.QApplication.instance()
         if app is not None:
             apply_theme_from_choice(app, theme_choice)
+        if self._finance_screen is not None:
+            self._finance_screen.apply_kpi_card_style()

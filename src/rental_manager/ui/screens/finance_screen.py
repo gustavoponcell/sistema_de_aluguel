@@ -11,8 +11,9 @@ from typing import Iterable
 from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import PaymentStatus, RentalStatus
-from rental_manager.paths import get_exports_dir
+from rental_manager.paths import get_config_path, get_exports_dir
 from rental_manager.repositories import rental_repo
+from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
 
 from rental_manager.ui.app_services import AppServices
 
@@ -24,7 +25,9 @@ class FinanceScreen(QtWidgets.QWidget):
         super().__init__()
         self._services = services
         self._rentals: list[rental_repo.RentalFinanceRow] = []
+        self._cards_container: QtWidgets.QWidget | None = None
         self._build_ui()
+        self.apply_kpi_card_style()
         self._load_data()
 
     def _build_ui(self) -> None:
@@ -81,7 +84,9 @@ class FinanceScreen(QtWidgets.QWidget):
         cards_layout.addWidget(self._to_receive_card.container)
         cards_layout.addWidget(self._count_card.container)
 
-        layout.addLayout(cards_layout)
+        self._cards_container = QtWidgets.QWidget()
+        self._cards_container.setLayout(cards_layout)
+        layout.addWidget(self._cards_container)
 
         table_group = QtWidgets.QGroupBox("Aluguéis no período")
         table_layout = QtWidgets.QVBoxLayout(table_group)
@@ -127,22 +132,59 @@ class FinanceScreen(QtWidgets.QWidget):
 
     def _create_summary_card(self, title: str, value: str) -> "_SummaryCard":
         container = QtWidgets.QFrame()
+        container.setObjectName("KpiCard")
         container.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        container.setStyleSheet(
-            "QFrame { background: #f5f6f7; border-radius: 8px; }"
-        )
         card_layout = QtWidgets.QVBoxLayout(container)
         card_layout.setContentsMargins(16, 12, 16, 12)
 
         title_label = QtWidgets.QLabel(title)
-        title_label.setStyleSheet("color: #4a4a4a; font-weight: 600;")
+        title_label.setObjectName("KpiTitle")
         value_label = QtWidgets.QLabel(value)
-        value_label.setStyleSheet("font-size: 20px; font-weight: 700;")
+        value_label.setObjectName("KpiValue")
+        value_label.setEnabled(True)
 
         card_layout.addWidget(title_label)
         card_layout.addWidget(value_label)
 
         return _SummaryCard(container=container, value_label=value_label)
+
+    def apply_kpi_card_style(self) -> None:
+        settings = load_theme_settings(get_config_path())
+        theme_name = resolve_theme_choice(settings.theme)
+        if theme_name == "dark":
+            stylesheet = """
+            QFrame#KpiCard {
+                background-color: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                border-radius: 10px;
+            }
+            QLabel#KpiTitle {
+                color: rgba(255, 255, 255, 0.78);
+            }
+            QLabel#KpiValue {
+                color: rgba(255, 255, 255, 0.95);
+                font-size: 22px;
+                font-weight: 700;
+            }
+            """
+        else:
+            stylesheet = """
+            QFrame#KpiCard {
+                background-color: #ffffff;
+                border: 1px solid rgba(0, 0, 0, 0.10);
+                border-radius: 10px;
+            }
+            QLabel#KpiTitle {
+                color: rgba(0, 0, 0, 0.70);
+            }
+            QLabel#KpiValue {
+                color: rgba(0, 0, 0, 0.92);
+                font-size: 22px;
+                font-weight: 700;
+            }
+            """
+        if self._cards_container is not None:
+            self._cards_container.setStyleSheet(stylesheet)
 
     def _load_data(self) -> None:
         start_date, end_date = self._current_period()
@@ -160,6 +202,7 @@ class FinanceScreen(QtWidgets.QWidget):
         self._count_card.value_label.setText(str(report.rentals_count))
 
         self._populate_table(self._rentals)
+        self.apply_kpi_card_style()
 
     def _current_period(self) -> tuple[str, str]:
         start_qdate = self._start_date.date()
