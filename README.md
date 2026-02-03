@@ -2,6 +2,8 @@
 
 Aplicativo desktop para gerenciamento de aluguéis, focado em uso offline no Windows.
 
+📘 **Documentação completa:** [DOCUMENTATION.md](DOCUMENTATION.md)
+
 ## Como rodar em desenvolvimento
 
 1) Crie e ative um ambiente virtual:
