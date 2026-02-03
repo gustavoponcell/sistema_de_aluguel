@@ -17,7 +17,7 @@ from rental_manager.utils.config_store import load_config_data, save_config_data
 GITHUB_API_BASE = "https://api.github.com/repos"
 DEFAULT_UPDATE_PROVIDER = "github"
 DEFAULT_UPDATE_OWNER = "gustavoponcell"
-DEFAULT_UPDATE_REPO = "instalador"
+DEFAULT_UPDATE_REPO = "sistema_de_aluguel"
 DEFAULT_ASSET_PREFIX = "GestaoInteligente-Setup-"
 
 
