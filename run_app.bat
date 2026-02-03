@@ -92,8 +92,6 @@ if errorlevel 1 (
   exit /b 1
 )
 
-set "PYTHONPATH=%PROJ_DIR%src"
-
 echo [ETAPA] Diagnosticos do ambiente...
 python --version
 where python
@@ -112,43 +110,32 @@ if "%REQ_HASH%"=="" (
 )
 
 set "OLD_HASH="
-if exist "%HASH_FILE%" (
-  set /p OLD_HASH=<"%HASH_FILE%"
+if exist "%HASH_FILE%" set /p OLD_HASH=<"%HASH_FILE%"
+
+if /I "%REQ_HASH%"=="%OLD_HASH%" goto :run
+goto :install
+
+:install
+echo [INFO] Entrando em :install
+python -m pip install --upgrade pip
+if errorlevel 1 (
+  echo [AVISO] Nao foi possivel atualizar o pip. Continuando...
 )
-
-if /I not "%REQ_HASH%"=="%OLD_HASH%" (
-  echo [ETAPA] Instalando/atualizando dependencias (requirements mudou ou primeira execucao)...
-  python -m pip install --upgrade pip
-  if errorlevel 1 (
-    echo [AVISO] Nao foi possivel atualizar o pip. Continuando...
-  )
-
-  python -m pip install -r "%REQ_FILE%"
-  if errorlevel 1 (
-    echo [ERRO] Falha ao instalar dependencias.
-    echo Verifique sua internet ou permissao de instalacao.
-    exit /b 1
-  )
-
-  echo %REQ_HASH%>"%HASH_FILE%"
-) else (
-  echo [INFO] Dependencias OK (requirements.txt nao mudou).
+pip install -r "%REQ_FILE%"
+if errorlevel 1 (
+  echo [ERRO] Falha ao instalar dependencias.
+  echo Verifique sua internet ou permissao de instalacao.
+  exit /b 1
 )
+echo %REQ_HASH%>"%HASH_FILE%"
+goto :run
 
-echo [ETAPA] Rodando aplicativo (layout src)...
-python -m rental_manager
-set "APP_EXIT=%errorlevel%"
-
-if not "%APP_EXIT%"=="0" (
-  echo [ERRO] Execucao via "-m rental_manager" falhou (errorlevel=%APP_EXIT%).
-  echo [ETAPA] Tentando fallback com app.py direto...
-  python "%APP_FILE%"
-  set "APP_EXIT=%errorlevel%"
+:run
+set "PYTHONPATH=%SRC_DIR%"
+python -m rental_manager.app
+if errorlevel 1 (
+  echo [ERRO] App falhou. Veja run_app.log
+  pause
+  exit /b 1
 )
-
-if not "%APP_EXIT%"=="0" (
-  echo [ERRO] Aplicativo nao iniciou corretamente (errorlevel=%APP_EXIT%).
-  exit /b %APP_EXIT%
-)
-
 exit /b 0
