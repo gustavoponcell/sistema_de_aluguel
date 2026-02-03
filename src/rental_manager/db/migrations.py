@@ -231,6 +231,25 @@ MIGRATIONS: list[Migration] = [
         WHERE paid_value > 0;
         """,
     ),
+    Migration(
+        version=4,
+        script="""
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rental_id INTEGER NOT NULL,
+            doc_type TEXT NOT NULL CHECK (doc_type IN ('contract', 'receipt')),
+            file_path TEXT NOT NULL,
+            generated_at TEXT NOT NULL,
+            checksum TEXT NOT NULL,
+            FOREIGN KEY (rental_id) REFERENCES rentals(id)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_rental_type
+            ON documents(rental_id, doc_type);
+        CREATE INDEX IF NOT EXISTS idx_documents_rental_generated_at
+            ON documents(rental_id, generated_at);
+        """,
+    ),
 ]
 
 
