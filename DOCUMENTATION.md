@@ -113,7 +113,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 ### 3.3 Fluxo principal de inicialização
 1. Configura logs.
 2. Garante pastas do AppData.
-3. Inicializa o banco (`init_db`).
+3. Aplica migrações do banco (`apply_migrations`).
 4. Carrega configurações (tema + backup automático).
 5. Cria QApplication e aplica tema.
 6. Instancia repos/serviços (CustomerRepo, ProductRepo, RentalService etc.).
@@ -142,8 +142,9 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 
 ### 4.2 Criação/atualização
 - O banco é criado automaticamente na primeira execução.
-- **Não há sistema de migrações**: o schema é criado com `CREATE TABLE IF NOT EXISTS`.
-- Caso o banco já exista, as tabelas não são recriadas.
+- Existe **versionamento do schema** via tabela `app_meta` e migrações numeradas.
+- Cada migração é aplicada **apenas uma vez** e o número atual fica em `app_meta.schema_version`.
+- Ao iniciar o app, o sistema chama `apply_migrations` para criar/atualizar o schema.
 
 ### 4.3 Tabelas e colunas principais
 
@@ -191,13 +192,19 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `idx_rentals_event_date`
 - `idx_rentals_start_date`
 - `idx_rentals_end_date`
+- `idx_rentals_status`
 - `idx_rental_items_rental_id`
 - `idx_rental_items_product_id`
 
 ### 4.5 Constraints e integridade
 - **Foreign Keys** habilitadas (`PRAGMA foreign_keys = ON`).
 - `products.name` é `UNIQUE`.
-- Não existem `CHECK constraints` no banco; validações são feitas no código.
+- `CHECK constraints` garantem valores válidos:
+  - `products.total_qty >= 0` e `products.unit_price >= 0` (ou nulo).
+  - `rental_items.qty > 0`.
+  - `rentals.total_value >= 0` e `rentals.paid_value >= 0`.
+  - `rentals.end_date > rentals.start_date`.
+  - `rentals.status` limitado aos valores reais do app (`draft`, `confirmed`, `canceled`, `completed`).
 
 ---
 
@@ -520,7 +527,7 @@ start_date <= D < end_date
 ## 12) Planejado / Não implementado ainda
 
 - Tela de **Configurações** dedicada (hoje só há tema no menu e backup na tela própria).
-- **Migrações** de banco (não há sistema de migração automática).
+- Migrações futuras além das básicas (apenas constraints e versionamento simples já existem).
 - **Tabela de pagamentos** separada (pagamento fica em campos da tabela `rentals`).
 - **Exportações adicionais** (além do CSV financeiro).
 - **Calendário** visual (existe apenas lista/agenda).
