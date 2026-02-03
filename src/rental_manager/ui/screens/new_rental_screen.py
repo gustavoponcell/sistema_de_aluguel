@@ -47,6 +47,7 @@ class NewRentalScreen(BaseScreen):
         self._load_products()
 
     def _build_ui(self) -> None:
+        self._building_ui = True
         layout = QtWidgets.QVBoxLayout(self)
         layout.setSpacing(18)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -85,13 +86,13 @@ class NewRentalScreen(BaseScreen):
         self.end_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("dd/MM/yyyy")
+        self.duration_label = QtWidgets.QLabel("")
+        self.duration_label.setStyleSheet("color: #666; font-size: 13px;")
+        self._sync_end_date_min(self.start_date_input.date())
+        self._update_duration_label()
         self.start_date_input.dateChanged.connect(self._sync_end_date_min)
         self.start_date_input.dateChanged.connect(self._on_dates_changed)
         self.end_date_input.dateChanged.connect(self._on_dates_changed)
-        self._sync_end_date_min(self.start_date_input.date())
-        self.duration_label = QtWidgets.QLabel()
-        self.duration_label.setStyleSheet("color: #666; font-size: 13px;")
-        self._update_duration_label()
 
         dates_row = QtWidgets.QHBoxLayout()
         dates_row.addWidget(QtWidgets.QLabel("Evento"))
@@ -212,6 +213,7 @@ class NewRentalScreen(BaseScreen):
             }
             """
         )
+        self._building_ui = False
 
     def _show_warning(self, message: str) -> None:
         QtWidgets.QMessageBox.warning(self, "Atenção", message)
@@ -239,6 +241,8 @@ class NewRentalScreen(BaseScreen):
         self._update_duration_label()
 
     def _on_dates_changed(self) -> None:
+        if getattr(self, "_building_ui", False):
+            return
         self._ensure_end_date_after_start()
         self._update_duration_label()
         if not self._items:
@@ -456,6 +460,8 @@ class NewRentalScreen(BaseScreen):
             self.end_date_input.setDate(start_date.addDays(1))
 
     def _update_duration_label(self) -> None:
+        if not hasattr(self, "duration_label"):
+            return
         start_date = self.start_date_input.date()
         end_date = self.end_date_input.date()
         duration_days = max(1, start_date.daysTo(end_date))
