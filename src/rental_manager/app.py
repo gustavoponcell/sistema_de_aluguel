@@ -7,8 +7,8 @@ import sys
 from PySide6 import QtWidgets
 
 from rental_manager.config import AppConfig
-from rental_manager.db import init_db
 from rental_manager.db.connection import get_connection
+from rental_manager.db.migrations import apply_migrations
 from rental_manager.logging_config import configure_logging, get_logger
 from rental_manager.paths import (
     get_app_data_dir,
@@ -33,7 +33,8 @@ def main() -> int:
     get_app_data_dir()
     get_backup_dir()
     get_logs_dir()
-    init_db(get_db_path())
+    connection = get_connection(get_db_path())
+    apply_migrations(connection)
 
     config = AppConfig()
     logger = get_logger(__name__)
@@ -54,7 +55,6 @@ def main() -> int:
     if not apply_theme_from_choice(app, theme_settings.theme):
         logger.warning("Falha ao aplicar tema. Usando estilo padrão.")
 
-    connection = get_connection(get_db_path())
     services = AppServices(
         connection=connection,
         data_bus=DataEventBus(),
