@@ -72,7 +72,7 @@ class ProductDialog(QtWidgets.QDialog):
         if not name:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Validação",
+                "Atenção",
                 "Informe o nome do produto.",
             )
             return False
@@ -80,21 +80,21 @@ class ProductDialog(QtWidgets.QDialog):
         if not category:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Validação",
+                "Atenção",
                 "Informe a categoria do produto.",
             )
             return False
         if self.total_qty_input.value() <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Validação",
+                "Atenção",
                 "A quantidade total deve ser maior que zero.",
             )
             return False
         if self.unit_price_input.value() <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Validação",
+                "Atenção",
                 "O preço padrão deve ser maior que zero.",
             )
             return False
@@ -279,7 +279,7 @@ class ProductsScreen(QtWidgets.QWidget):
         if not updated:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Aviso",
+                "Atenção",
                 "O produto não foi encontrado para atualização.",
             )
         self._load_products(self.search_input.text())
@@ -290,7 +290,7 @@ class ProductsScreen(QtWidgets.QWidget):
             return
         response = QtWidgets.QMessageBox.question(
             self,
-            "Confirmar desativação",
+            "Confirmação",
             f"Tem certeza que deseja desativar o produto '{product.name}'?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
         )
@@ -308,7 +308,7 @@ class ProductsScreen(QtWidgets.QWidget):
         if not success:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Aviso",
+                "Atenção",
                 "O produto já estava desativado ou não foi encontrado.",
             )
         self._load_products(self.search_input.text())

@@ -97,7 +97,7 @@ class BackupScreen(QtWidgets.QWidget):
         except OSError:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Aviso",
+                "Atenção",
                 "Não foi possível salvar as configurações de backup.",
             )
 
@@ -142,7 +142,7 @@ class BackupScreen(QtWidgets.QWidget):
         self._refresh_backups()
         QtWidgets.QMessageBox.information(
             self,
-            "Backup criado",
+            "Sucesso",
             f"Backup criado com sucesso: {backup_path.name}",
         )
 
@@ -151,7 +151,7 @@ class BackupScreen(QtWidgets.QWidget):
         if not backup_path:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Seleção necessária",
+                "Atenção",
                 "Selecione um backup para restaurar.",
             )
             return
@@ -168,13 +168,13 @@ class BackupScreen(QtWidgets.QWidget):
 
         text, accepted = QtWidgets.QInputDialog.getText(
             self,
-            "Confirmação forte",
+            "Confirmação",
             "Digite RESTAURAR para confirmar:",
         )
         if not accepted or text.strip().upper() != "RESTAURAR":
             QtWidgets.QMessageBox.warning(
                 self,
-                "Confirmação inválida",
+                "Atenção",
                 "A restauração foi cancelada.",
             )
             return
@@ -195,7 +195,7 @@ class BackupScreen(QtWidgets.QWidget):
 
         QtWidgets.QMessageBox.information(
             self,
-            "Restauração concluída",
+            "Sucesso",
             "Backup restaurado. O aplicativo será fechado para concluir a "
             "restauração.",
         )

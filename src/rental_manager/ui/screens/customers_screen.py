@@ -65,7 +65,7 @@ class CustomerDialog(QtWidgets.QDialog):
         if not name:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Validação",
+                "Atenção",
                 "Informe o nome do cliente.",
             )
             return False
@@ -236,7 +236,7 @@ class CustomersScreen(QtWidgets.QWidget):
         if not updated:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Aviso",
+                "Atenção",
                 "O cliente não foi encontrado para atualização.",
             )
         self._load_customers(self.search_input.text())
@@ -247,7 +247,7 @@ class CustomersScreen(QtWidgets.QWidget):
             return
         response = QtWidgets.QMessageBox.question(
             self,
-            "Confirmar exclusão",
+            "Confirmação",
             f"Tem certeza que deseja excluir o cliente '{customer.name}'?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
         )
@@ -265,7 +265,7 @@ class CustomersScreen(QtWidgets.QWidget):
         if not success:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Aviso",
+                "Atenção",
                 "O cliente já havia sido removido ou não foi encontrado.",
             )
         self._load_customers(self.search_input.text())
