@@ -583,6 +583,8 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.start_date_input.dateChanged.connect(self._sync_end_date_min)
         self.start_date_input.dateChanged.connect(self._on_dates_changed)
         self.end_date_input.dateChanged.connect(self._on_dates_changed)
+        self.duration_label = QtWidgets.QLabel()
+        self.duration_label.setStyleSheet("color: #666; font-size: 13px;")
 
         dates_row = QtWidgets.QHBoxLayout()
         dates_row.addWidget(QtWidgets.QLabel("Evento"))
@@ -593,6 +595,8 @@ class RentalEditDialog(QtWidgets.QDialog):
         dates_row.addSpacing(12)
         dates_row.addWidget(QtWidgets.QLabel("Fim"))
         dates_row.addWidget(self.end_date_input)
+        dates_row.addSpacing(12)
+        dates_row.addWidget(self.duration_label)
         dates_row.addStretch()
 
         self.address_input = QtWidgets.QPlainTextEdit()
@@ -757,6 +761,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         self._render_items_table()
         self._update_total_label()
         self._sync_end_date_min(self.start_date_input.date())
+        self._update_duration_label()
 
     def _on_product_selected(self) -> None:
         self._apply_selected_product_price()
@@ -900,13 +905,29 @@ class RentalEditDialog(QtWidgets.QDialog):
         end_date = self.end_date_input.date().toPython()
         return event_date, start_date, end_date
 
+    def _ensure_end_date_after_start(self) -> None:
+        start_date = self.start_date_input.date()
+        end_date = self.end_date_input.date()
+        if end_date <= start_date:
+            self.end_date_input.setDate(start_date.addDays(1))
+
+    def _update_duration_label(self) -> None:
+        start_date = self.start_date_input.date()
+        end_date = self.end_date_input.date()
+        duration_days = max(1, start_date.daysTo(end_date))
+        label = "dia" if duration_days == 1 else "dias"
+        self.duration_label.setText(f"Duração: {duration_days} {label}")
+
     def _sync_end_date_min(self, new_start_date: QtCore.QDate) -> None:
         minimum_end_date = new_start_date.addDays(1)
         self.end_date_input.setMinimumDate(minimum_end_date)
         if self.end_date_input.date() < minimum_end_date:
             self.end_date_input.setDate(minimum_end_date)
+        self._update_duration_label()
 
     def _on_dates_changed(self) -> None:
+        self._ensure_end_date_after_start()
+        self._update_duration_label()
         if not self._items:
             return
         if not self._validate_dates():

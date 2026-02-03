@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import sqlite3
 
 from rental_manager.db.connection import transaction
+from rental_manager.logging_config import get_logger
 
 
 @dataclass(frozen=True)
@@ -270,6 +271,154 @@ def _fetch_schema_version(connection: sqlite3.Connection) -> int:
     return int(row[0])
 
 
+def _convert_legacy_date_format(
+    connection: sqlite3.Connection, column_name: str
+) -> int:
+    cursor = connection.execute(
+        f"""
+        UPDATE rentals
+        SET {column_name} = (
+            substr({column_name}, 7, 4)
+            || '-' || substr({column_name}, 4, 2)
+            || '-' || substr({column_name}, 1, 2)
+        )
+        WHERE {column_name} LIKE '__/__/____'
+        """
+    )
+    return int(cursor.rowcount or 0)
+
+
+def _preflight_cleanup_rentals(connection: sqlite3.Connection) -> bool:
+    logger = get_logger("Migration")
+    logger.info("Executando limpeza prévia de datas para migração de rentals.")
+
+    invalid_before = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM rentals
+        WHERE start_date IS NULL
+           OR end_date IS NULL
+           OR end_date <= start_date
+        """
+    ).fetchone()[0]
+    logger.info("Registros inválidos detectados antes da limpeza: %s.", invalid_before)
+
+    converted_start = _convert_legacy_date_format(connection, "start_date")
+    converted_end = _convert_legacy_date_format(connection, "end_date")
+    if converted_start or converted_end:
+        logger.info(
+            "Datas convertidas do formato legado (dd/MM/yyyy). "
+            "start_date: %s, end_date: %s.",
+            converted_start,
+            converted_end,
+        )
+
+    invalid_start_format = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM rentals
+        WHERE start_date IS NOT NULL
+          AND date(start_date) IS NULL
+        """
+    ).fetchone()[0]
+    if invalid_start_format:
+        logger.warning(
+            "Encontrados %s registros com start_date em formato inválido.",
+            invalid_start_format,
+        )
+
+    draft_fixed = connection.execute(
+        """
+        UPDATE rentals
+        SET start_date = date('now'),
+            end_date = date('now', '+1 day')
+        WHERE start_date IS NULL
+          AND status = 'draft'
+        """
+    ).rowcount
+    if draft_fixed:
+        logger.info(
+            "Datas preenchidas para %s aluguéis rascunho sem start_date.",
+            draft_fixed,
+        )
+
+    canceled_fixed = connection.execute(
+        """
+        UPDATE rentals
+        SET status = 'canceled',
+            start_date = date('now'),
+            end_date = date('now', '+1 day')
+        WHERE start_date IS NULL
+          AND status != 'draft'
+        """
+    ).rowcount
+    if canceled_fixed:
+        logger.warning(
+            "Aluguéis sem start_date foram cancelados automaticamente: %s.",
+            canceled_fixed,
+        )
+
+    end_date_fixed = connection.execute(
+        """
+        UPDATE rentals
+        SET end_date = date(start_date, '+1 day')
+        WHERE start_date IS NOT NULL
+          AND date(start_date) IS NOT NULL
+          AND (
+            end_date IS NULL
+            OR date(end_date) IS NULL
+            OR date(end_date) <= date(start_date)
+          )
+        """
+    ).rowcount
+    if end_date_fixed:
+        logger.info(
+            "Datas de devolução corrigidas automaticamente: %s.",
+            end_date_fixed,
+        )
+
+    fallback_end_date = 0
+    if invalid_start_format:
+        fallback_end_date = connection.execute(
+            """
+            UPDATE rentals
+            SET end_date = start_date
+            WHERE start_date IS NOT NULL
+              AND date(start_date) IS NULL
+            """
+        ).rowcount
+        if fallback_end_date:
+            logger.warning(
+                "Datas de devolução ajustadas para start_date em %s registros "
+                "com formato inválido.",
+                fallback_end_date,
+            )
+
+    remaining_null = connection.execute(
+        "SELECT COUNT(*) FROM rentals WHERE start_date IS NULL OR end_date IS NULL"
+    ).fetchone()[0]
+    if remaining_null:
+        message = (
+            "Migração abortada: ainda existem aluguéis com datas ausentes após a "
+            "limpeza automática."
+        )
+        logger.error(message)
+        raise RuntimeError(message)
+
+    total_fixed = sum(
+        value
+        for value in (draft_fixed, canceled_fixed, end_date_fixed, fallback_end_date)
+        if value
+    )
+    logger.info("Registros corrigidos automaticamente: %s.", total_fixed)
+
+    if invalid_start_format:
+        logger.warning(
+            "Aplicando CHECK constraint mais tolerante por causa de formatos inválidos."
+        )
+    return bool(invalid_start_format)
+
+
 def apply_migrations(connection: sqlite3.Connection) -> None:
     """Apply pending database migrations."""
     with transaction(connection):
@@ -283,7 +432,15 @@ def apply_migrations(connection: sqlite3.Connection) -> None:
             connection.execute("PRAGMA foreign_keys = OFF;")
 
         with transaction(connection):
-            connection.executescript(migration.script)
+            script = migration.script
+            if migration.version == 2:
+                relax_constraint = _preflight_cleanup_rentals(connection)
+                if relax_constraint:
+                    script = script.replace(
+                        "CHECK (end_date > start_date)",
+                        "CHECK (end_date >= start_date)",
+                    )
+            connection.executescript(script)
             connection.execute(
                 "UPDATE app_meta SET schema_version = ?",
                 (migration.version,),
