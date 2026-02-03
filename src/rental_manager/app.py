@@ -50,11 +50,8 @@ def main() -> int:
     app.setOrganizationName(config.organization_name)
     app.setOrganizationDomain(config.organization_domain)
     theme_settings = load_theme_settings(get_config_path())
-    try:
-        apply_theme_from_choice(app, theme_settings.theme)
-    except Exception:
-        logger.exception("Falha ao aplicar tema. Usando tema claro.")
-        apply_theme_from_choice(app, "light")
+    if not apply_theme_from_choice(app, theme_settings.theme):
+        logger.warning("Falha ao aplicar tema. Usando estilo padrão.")
 
     connection = get_connection(get_db_path())
     services = AppServices(

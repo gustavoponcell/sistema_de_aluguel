@@ -13,6 +13,11 @@ from rental_manager.utils.config_store import load_config_data, save_config_data
 
 ThemeChoice = Literal["light", "dark", "system"]
 
+try:
+    import qdarktheme  # type: ignore
+except ImportError:
+    qdarktheme = None
+
 
 @dataclass(frozen=True)
 class ThemeSettings:
@@ -71,23 +76,48 @@ def resolve_theme_choice(choice: ThemeChoice) -> str:
     return "dark" if detected else "light"
 
 
-def apply_theme(app: QtWidgets.QApplication, theme_name: str) -> None:
+def apply_theme(app: QtWidgets.QApplication, theme_name: str) -> bool:
     """Apply qdarktheme plus custom tweaks."""
-    import qdarktheme
-
-    qdarktheme.setup_theme(theme_name)
-    app.setStyleSheet(_theme_stylesheet(theme_name))
+    if qdarktheme is None:
+        return False
+    try:
+        if hasattr(qdarktheme, "setup_theme"):
+            qdarktheme.setup_theme(theme_name)
+            app.setStyleSheet(_theme_stylesheet(theme_name))
+            return True
+        if hasattr(qdarktheme, "load_stylesheet"):
+            stylesheet = qdarktheme.load_stylesheet(theme_name)
+            app.setStyleSheet(f"{stylesheet}\n{_theme_stylesheet(theme_name)}")
+            return True
+        if hasattr(qdarktheme, "set_theme"):
+            qdarktheme.set_theme(theme_name)
+            app.setStyleSheet(_theme_stylesheet(theme_name))
+            return True
+    except Exception:
+        return False
+    return False
 
 
 def apply_theme_from_choice(
     app: QtWidgets.QApplication, choice: ThemeChoice
-) -> str:
-    """Apply theme from the given choice and return the actual theme name."""
+) -> bool:
+    """Apply theme from the given choice and return True if applied."""
     theme_name = resolve_theme_choice(choice)
-    apply_theme(app, theme_name)
     logger = get_logger(__name__)
+    applied = False
+    try:
+        applied = apply_theme(app, theme_name)
+    except Exception:
+        applied = False
+    if not applied:
+        try:
+            app.setStyle("Fusion")
+            app.setStyleSheet("")
+        except Exception:
+            return False
+        return False
     logger.info("Tema aplicado: %s (configurado: %s)", theme_name, choice)
-    return theme_name
+    return True
 
 
 def _theme_stylesheet(theme_name: str) -> str:
