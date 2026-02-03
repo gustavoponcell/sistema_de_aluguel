@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-APP_NAME = "RentalManager"
-APP_DATA_DIRNAME = APP_NAME
+from rental_manager.version import __app_name__, __company__
+
+APP_NAME = __app_name__
+APP_DATA_DIRNAME = "RentalManager"
 DB_FILENAME = "rental_manager.db"
 BACKUP_DIRNAME = "backups"
 BACKUP_RETENTION_COUNT = 30
@@ -41,5 +43,5 @@ class AppConfig:
     """Static configuration values for RentalManager."""
 
     app_name: str = APP_NAME
-    organization_name: str = APP_NAME
-    organization_domain: str = "rentalmanager.local"
+    organization_name: str = __company__
+    organization_domain: str = "gestaointeligente.local"

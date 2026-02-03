@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from rental_manager.domain.models import ProductKind
+from rental_manager.version import __app_name__
 
-APP_NAME = "RentalManager"
+APP_NAME = __app_name__
 
 TITLE_WARNING = "Atenção"
 TITLE_ERROR = "Erro"

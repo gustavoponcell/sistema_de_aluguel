@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(0, 1, 0, 0),
+    prodvers=(0, 1, 0, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -16,13 +16,13 @@ VSVersionInfo(
         StringTable(
           '040904B0',
           [
-            StringStruct('CompanyName', 'RentalManager'),
-            StringStruct('FileDescription', 'Rental Manager'),
-            StringStruct('FileVersion', '1.0.0'),
-            StringStruct('InternalName', 'RentalManager'),
-            StringStruct('OriginalFilename', 'RentalManager.exe'),
-            StringStruct('ProductName', 'RentalManager'),
-            StringStruct('ProductVersion', '1.0.0')
+            StringStruct('CompanyName', 'Gestão Inteligente'),
+            StringStruct('FileDescription', 'Gestão Inteligente'),
+            StringStruct('FileVersion', '0.1.0'),
+            StringStruct('InternalName', 'GestaoInteligente'),
+            StringStruct('OriginalFilename', 'GestaoInteligente.exe'),
+            StringStruct('ProductName', 'Gestão Inteligente'),
+            StringStruct('ProductVersion', '0.1.0')
           ]
         )
       ]

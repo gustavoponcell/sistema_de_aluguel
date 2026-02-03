@@ -1,4 +1,4 @@
-# Documentação Completa — RentalManager
+# Documentação Completa — Gestão Inteligente
 
 > Documento em PT-BR voltado tanto para **usuário final** quanto para **manutenção técnica**.
 
@@ -23,7 +23,7 @@
 ## 1) Visão geral
 
 **O que o sistema faz**
-- O RentalManager é um aplicativo desktop para **gestão de pedidos de locação de itens para eventos** (cadeiras, mesas, brinquedos, som etc.).
+- O Gestão Inteligente é um aplicativo desktop para **gestão de pedidos de locação de itens para eventos** (cadeiras, mesas, brinquedos, som etc.).
 - Permite cadastrar produtos e clientes, criar e gerenciar pedidos, acompanhar agenda e financeiro, gerar PDF de contrato/recibo e fazer backup/restauração do banco local.
 
 **Público-alvo**
@@ -95,6 +95,7 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - **Log do aplicativo**: `%APPDATA%\RentalManager\logs\app.log`.
   - Use quando o app abriu, mas **algo falhou dentro do app**.
   - Logs rotacionam automaticamente (até 3 arquivos, ~1 MB cada).
+  - **Observação**: mesmo com o nome comercial "Gestão Inteligente", os dados continuam em `%APPDATA%\RentalManager\` por compatibilidade.
 
 ### 3.5 Criar atalho na área de trabalho
 1. Clique com o botão direito em `run_app.bat` → **Enviar para > Área de trabalho (criar atalho)**.
@@ -104,6 +105,30 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 4. Clique em **OK**.
 
 > O campo **Iniciar em** é essencial para garantir que o app encontre `src/` e `requirements.txt`.
+
+### 3.6 Instalador (Inno Setup)
+Para gerar o instalador `GestaoInteligente-Setup-<versao>.exe`, use:
+
+```powershell
+.\installer\build_installer.ps1
+```
+
+- O instalador final fica em `dist_installer\`.
+- Ele cria atalho no **Menu Iniciar** e oferece opção de **atalho na Área de Trabalho**.
+- A desinstalação não remove os dados em `%APPDATA%\RentalManager\`.
+
+### 3.7 Atualizações
+No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
+- Se existir atualização, o app mostra versão atual, versão disponível e notas.
+- O botão **Baixar e instalar** abre o instalador no navegador.
+- Caso o repositório não seja detectado, configure em `%APPDATA%\RentalManager\config.json`:
+  ```json
+  {
+    "updates": {
+      "repo": "OWNER/REPO"
+    }
+  }
+  ```
 
 ---
 
@@ -540,11 +565,11 @@ start_date <= D < end_date
 - Se quiser chamar o PyInstaller manualmente:
 
 ```powershell
-pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
+pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
 ```
 
 ### 10.2 Onde fica o executável
-- `dist\RentalManager\RentalManager.exe`
+- `dist\GestaoInteligente\GestaoInteligente.exe`
 
 ### 10.2.1 Pasta de dados do usuário
 - `%APPDATA%\RentalManager\`
@@ -559,9 +584,14 @@ pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-fi
 - Certifique-se de que o app grava em `%APPDATA%` e não na pasta do executável.
 
 ### 10.4 Distribuição
-1. Copie a pasta `dist\RentalManager` completa.
-2. Execute `RentalManager.exe` no PC de destino.
-3. Para criar atalho: botão direito no `RentalManager.exe` → **Enviar para > Área de trabalho (criar atalho)**.
+1. Copie a pasta `dist\GestaoInteligente` completa.
+2. Execute `GestaoInteligente.exe` no PC de destino.
+3. Para criar atalho: botão direito no `GestaoInteligente.exe` → **Enviar para > Área de trabalho (criar atalho)**.
+
+### 10.5 Instalador (recomendado)
+1. Execute `.\installer\build_installer.ps1`.
+2. O instalador ficará em `dist_installer\GestaoInteligente-Setup-<versao>.exe`.
+3. Use o instalador para garantir atalhos e desinstalação corretos.
 
 ---
 
