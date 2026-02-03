@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from rental_manager.paths import get_config_path
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens import (
     BackupScreen,
@@ -15,6 +16,22 @@ from rental_manager.ui.screens import (
 )
 from rental_manager.ui.strings import APP_NAME
 from rental_manager.utils.theme import ThemeSettings
+from rental_manager.utils.updater import UpdateCheckResult, check_for_updates
+from rental_manager.version import __version__
+
+
+class UpdateCheckWorker(QtCore.QThread):
+    """Background worker to check for updates."""
+
+    completed = QtCore.Signal(UpdateCheckResult)
+
+    def __init__(self, config_path) -> None:
+        super().__init__()
+        self._config_path = config_path
+
+    def run(self) -> None:
+        result = check_for_updates(self._config_path, __version__)
+        self.completed.emit(result)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -25,7 +42,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._services = services
         self._stack = QtWidgets.QStackedWidget()
         self._theme_manager = services.theme_manager
-        self.setWindowTitle(APP_NAME)
+        self._update_worker: UpdateCheckWorker | None = None
+        self._update_progress: QtWidgets.QProgressDialog | None = None
+        self.setWindowTitle(f"{APP_NAME} — v{__version__}")
         self.resize(1024, 640)
         self._build_ui()
 
@@ -137,7 +156,10 @@ class MainWindow(QtWidgets.QMainWindow):
             theme_group.triggered.connect(self._on_theme_selected)
 
         help_menu = menu_bar.addMenu("Ajuda")
-        help_menu.addAction("Sobre")
+        check_updates_action = help_menu.addAction("Verificar atualizações")
+        check_updates_action.triggered.connect(self._on_check_updates)
+        about_action = help_menu.addAction("Sobre")
+        about_action.triggered.connect(self._show_about)
 
     def _on_theme_selected(self, action: QtGui.QAction) -> None:
         theme_choice = action.data()
@@ -145,3 +167,81 @@ class MainWindow(QtWidgets.QMainWindow):
             theme_choice = "system"
         settings = ThemeSettings(theme=theme_choice)
         self._theme_manager.set_theme(settings.theme)
+
+    def _show_about(self) -> None:
+        message = QtWidgets.QMessageBox(self)
+        message.setWindowTitle("Sobre")
+        message.setIcon(QtWidgets.QMessageBox.Information)
+        message.setText(f"{APP_NAME}\nVersão {__version__}")
+        message.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        message.exec()
+
+    def _on_check_updates(self) -> None:
+        if self._update_worker and self._update_worker.isRunning():
+            return
+        self._update_progress = QtWidgets.QProgressDialog(
+            "Verificando atualizações...", None, 0, 0, self
+        )
+        self._update_progress.setWindowTitle("Atualizações")
+        self._update_progress.setWindowModality(QtCore.Qt.WindowModal)
+        self._update_progress.setCancelButton(None)
+        self._update_progress.show()
+
+        self._update_worker = UpdateCheckWorker(get_config_path())
+        self._update_worker.completed.connect(self._handle_update_result)
+        self._update_worker.start()
+
+    def _handle_update_result(self, result: UpdateCheckResult) -> None:
+        if self._update_progress:
+            self._update_progress.close()
+            self._update_progress = None
+        self._update_worker = None
+
+        if result.status == "update_available":
+            self._show_update_available(result)
+            return
+        if result.status == "up_to_date":
+            QtWidgets.QMessageBox.information(
+                self, "Atualizações", result.message or "Você já está atualizado."
+            )
+            return
+        if result.status == "no_repo":
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Atualizações",
+                result.message
+                or "Repositório não configurado para atualizações.",
+            )
+            return
+        QtWidgets.QMessageBox.warning(
+            self,
+            "Atualizações",
+            result.message or "Não foi possível verificar atualizações.",
+        )
+
+    def _show_update_available(self, result: UpdateCheckResult) -> None:
+        message_box = QtWidgets.QMessageBox(self)
+        message_box.setWindowTitle("Atualização disponível")
+        message_box.setIcon(QtWidgets.QMessageBox.Information)
+        message_box.setText(
+            "<b>Atualização disponível</b><br>"
+            f"Versão atual: {result.current_version}<br>"
+            f"Versão disponível: {result.latest_version}"
+        )
+        message_box.setInformativeText("Deseja baixar e instalar a atualização?")
+        if result.notes:
+            message_box.setDetailedText(result.notes[:4000])
+        download_button = message_box.addButton(
+            "Baixar e instalar", QtWidgets.QMessageBox.AcceptRole
+        )
+        message_box.addButton("Cancelar", QtWidgets.QMessageBox.RejectRole)
+        message_box.exec()
+        if message_box.clickedButton() == download_button:
+            if result.download_url:
+                QtGui.QDesktopServices.openUrl(QtCore.QUrl(result.download_url))
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Atualizações",
+                    "Não foi possível encontrar o instalador para download.",
+                )
