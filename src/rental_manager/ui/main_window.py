@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtWidgets
 
+from rental_manager.paths import get_config_path
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens import (
     BackupScreen,
@@ -12,6 +13,12 @@ from rental_manager.ui.screens import (
     NewRentalScreen,
     ProductsScreen,
     RentalsScreen,
+)
+from rental_manager.utils.theme import (
+    ThemeSettings,
+    apply_theme_from_choice,
+    load_theme_settings,
+    save_theme_settings,
 )
 
 
@@ -22,6 +29,8 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self._services = services
         self._stack = QtWidgets.QStackedWidget()
+        self._config_path = get_config_path()
+        self._theme_settings = load_theme_settings(self._config_path)
         self.setWindowTitle("RentalManager")
         self.resize(1024, 640)
         self._build_ui()
@@ -80,22 +89,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def _apply_styles(self) -> None:
         self.setStyleSheet(
             """
-            QFrame#sidebar {
-                background-color: #f5f6f8;
-            }
             QPushButton[nav="true"] {
                 font-size: 16px;
                 padding: 12px;
                 text-align: left;
                 border-radius: 8px;
-                background-color: white;
-            }
-            QPushButton[nav="true"]:hover {
-                background-color: #e3ecff;
-            }
-            QPushButton[nav="true"]:checked {
-                background-color: #2d6cdf;
-                color: white;
             }
             """
         )
@@ -107,5 +105,43 @@ class MainWindow(QtWidgets.QMainWindow):
         exit_action = file_menu.addAction("Sair")
         exit_action.triggered.connect(self.close)
 
+        view_menu = menu_bar.addMenu("Exibir")
+        theme_menu = view_menu.addMenu("Tema")
+        theme_group = QtWidgets.QActionGroup(self)
+        theme_group.setExclusive(True)
+        theme_actions = {
+            "light": theme_menu.addAction("Claro"),
+            "dark": theme_menu.addAction("Escuro"),
+            "system": theme_menu.addAction("Sistema"),
+        }
+        for key, action in theme_actions.items():
+            action.setCheckable(True)
+            action.setData(key)
+            theme_group.addAction(action)
+
+        current_theme = self._theme_settings.theme
+        if current_theme not in theme_actions:
+            current_theme = "system"
+        theme_actions[current_theme].setChecked(True)
+        theme_group.triggered.connect(self._on_theme_selected)
+
         help_menu = menu_bar.addMenu("Ajuda")
         help_menu.addAction("Sobre")
+
+    def _on_theme_selected(self, action: QtWidgets.QAction) -> None:
+        theme_choice = action.data()
+        if theme_choice not in ("light", "dark", "system"):
+            theme_choice = "system"
+        settings = ThemeSettings(theme=theme_choice)
+        self._theme_settings = settings
+        try:
+            save_theme_settings(self._config_path, settings)
+        except OSError:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Atenção",
+                "Não foi possível salvar a preferência de tema.",
+            )
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            apply_theme_from_choice(app, theme_choice)

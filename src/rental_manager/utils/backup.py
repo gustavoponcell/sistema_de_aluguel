@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import sqlite3
 from dataclasses import dataclass
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from rental_manager.paths import get_backup_dir
+from rental_manager.utils.config_store import load_config_data, save_config_data
 
 EXPECTED_TABLES = {"products", "customers", "rentals", "rental_items"}
 
@@ -24,12 +24,7 @@ class BackupSettings:
 
 def load_backup_settings(config_path: Path) -> BackupSettings:
     """Load backup settings from disk."""
-    if not config_path.exists():
-        return BackupSettings()
-    try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return BackupSettings()
+    data = load_config_data(config_path)
     return BackupSettings(
         auto_backup_on_start=bool(data.get("auto_backup_on_start", False))
     )
@@ -37,10 +32,9 @@ def load_backup_settings(config_path: Path) -> BackupSettings:
 
 def save_backup_settings(config_path: Path, settings: BackupSettings) -> None:
     """Save backup settings to disk."""
-    payload = {"auto_backup_on_start": settings.auto_backup_on_start}
-    config_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    payload = load_config_data(config_path)
+    payload["auto_backup_on_start"] = settings.auto_backup_on_start
+    save_config_data(config_path, payload)
 
 
 def export_backup(db_path: Path | str, backup_dir: Path | str) -> Path:

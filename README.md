@@ -27,6 +27,13 @@ python -m rental_manager.app
 
 O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`.
 
+## Como mudar o tema
+
+Abra o menu **Exibir > Tema** e escolha entre **Claro**, **Escuro** ou **Sistema**.
+A preferência é salva em `%APPDATA%\\RentalManager\\config.json` e aplicada
+imediatamente (sem precisar reiniciar). Se o modo **Sistema** estiver selecionado,
+o app segue o tema do Windows; caso a detecção falhe, o tema claro é usado.
+
 ## Build com PyInstaller
 
 ### Pré-requisitos
