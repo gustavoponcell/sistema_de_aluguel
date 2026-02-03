@@ -28,6 +28,7 @@ python -m rental_manager.app
 1) Execute o arquivo `run_app.bat` na raiz do projeto (duplo clique).
    - Se a pasta `.venv` não existir, o script mostra as instruções para criar o
      ambiente e instalar as dependências.
+   - Se algo falhar, o log detalhado fica em `run_app.log` na raiz do projeto.
 
 ### Criar um atalho na área de trabalho
 
