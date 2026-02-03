@@ -8,6 +8,7 @@ from typing import Iterable, Optional
 
 from dateutil import parser
 
+from rental_manager.domain.models import RentalStatus
 from rental_manager.logging_config import get_logger
 
 
@@ -17,7 +18,11 @@ def _to_iso_date(value: str | date) -> str:
     return parser.isoparse(value).date().isoformat()
 
 
-BLOCKING_STATUSES = ("confirmed", "completed")
+BLOCKING_STATUSES = (
+    RentalStatus.DRAFT.value,
+    RentalStatus.CONFIRMED.value,
+    RentalStatus.COMPLETED.value,
+)
 
 
 class InventoryService:
@@ -37,6 +42,7 @@ class InventoryService:
     ) -> int:
         start_date = _to_iso_date(start_date)
         end_date = _to_iso_date(end_date)
+        status_placeholders = ", ".join(["?"] * len(BLOCKING_STATUSES))
         params: list[object] = [product_id, *BLOCKING_STATUSES, end_date, start_date]
         exclude_clause = ""
         if exclude_rental_id is not None:
@@ -49,8 +55,8 @@ class InventoryService:
                 FROM rental_items ri
                 JOIN rentals r ON r.id = ri.rental_id
                 WHERE ri.product_id = ?
-                  AND r.status IN (?, ?)
-                  AND r.start_date <= ?
+                  AND r.status IN ({status_placeholders})
+                  AND r.start_date < ?
                   AND r.end_date > ?
                   {exclude_clause}
                 """,
@@ -89,13 +95,14 @@ class InventoryService:
         )
         return max(total_qty - reserved_qty, 0)
 
-    def get_reserved_qty_on_date(
+    def on_loan(
         self,
         product_id: int,
         reference_date: str | date,
         exclude_rental_id: Optional[int] = None,
     ) -> int:
         ref_date = _to_iso_date(reference_date)
+        status_placeholders = ", ".join(["?"] * len(BLOCKING_STATUSES))
         params: list[object] = [product_id, *BLOCKING_STATUSES, ref_date, ref_date]
         exclude_clause = ""
         if exclude_rental_id is not None:
@@ -108,7 +115,7 @@ class InventoryService:
                 FROM rental_items ri
                 JOIN rentals r ON r.id = ri.rental_id
                 WHERE ri.product_id = ?
-                  AND r.status IN (?, ?)
+                  AND r.status IN ({status_placeholders})
                   AND r.start_date <= ?
                   AND r.end_date > ?
                   {exclude_clause}
@@ -122,7 +129,7 @@ class InventoryService:
             raise
         return int(row["reserved_qty"]) if row else 0
 
-    def get_available_qty_on_date(
+    def available(
         self,
         product_id: int,
         reference_date: str | date,
@@ -139,12 +146,36 @@ class InventoryService:
         if not product_row:
             raise ValueError(f"Produto {product_id} não encontrado.")
         total_qty = int(product_row["total_qty"])
-        reserved_qty = self.get_reserved_qty_on_date(
+        reserved_qty = self.on_loan(
             product_id,
             reference_date,
             exclude_rental_id=exclude_rental_id,
         )
         return max(total_qty - reserved_qty, 0)
+
+    def get_reserved_qty_on_date(
+        self,
+        product_id: int,
+        reference_date: str | date,
+        exclude_rental_id: Optional[int] = None,
+    ) -> int:
+        return self.on_loan(
+            product_id,
+            reference_date,
+            exclude_rental_id=exclude_rental_id,
+        )
+
+    def get_available_qty_on_date(
+        self,
+        product_id: int,
+        reference_date: str | date,
+        exclude_rental_id: Optional[int] = None,
+    ) -> int:
+        return self.available(
+            product_id,
+            reference_date,
+            exclude_rental_id=exclude_rental_id,
+        )
 
     def validate_request(
         self,
@@ -153,49 +184,76 @@ class InventoryService:
         end_date: str | date,
         exclude_rental_id: Optional[int] = None,
     ) -> None:
+        self.validate_rental_availability(
+            rental_id=exclude_rental_id,
+            items=items,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def validate_rental_availability(
+        self,
+        rental_id: Optional[int],
+        items: Iterable[tuple[int, int]],
+        start_date: str | date,
+        end_date: str | date,
+    ) -> None:
         start = date.fromisoformat(_to_iso_date(start_date))
         end = date.fromisoformat(_to_iso_date(end_date))
         if end <= start:
             raise ValueError("A data de término deve ser posterior à data de início.")
-        errors: list[str] = []
-        total_qtys = self._load_total_qtys([product_id for product_id, _ in items])
+        aggregated_items = self._aggregate_items(items)
+        product_details = self._load_product_details(
+            [product_id for product_id, _ in aggregated_items]
+        )
         current_date = start
         while current_date < end:
-            for product_id, qty in items:
-                total_qty = total_qtys.get(product_id, 0)
-                reserved_qty = self.get_reserved_qty_on_date(
+            for product_id, qty in aggregated_items:
+                product = product_details.get(product_id)
+                if not product:
+                    raise ValueError(f"Produto {product_id} não encontrado.")
+                total_qty = product["total_qty"]
+                reserved_qty = self.on_loan(
                     product_id,
                     current_date,
-                    exclude_rental_id=exclude_rental_id,
+                    exclude_rental_id=rental_id,
                 )
                 available_qty = max(total_qty - reserved_qty, 0)
                 if qty > available_qty:
-                    errors.append(
-                        "- Produto {product_id} no dia {day}: disponível {available}, "
-                        "solicitado {requested}".format(
-                            product_id=product_id,
+                    product_label = product["name"] or f"ID {product_id}"
+                    raise ValueError(
+                        "Estoque insuficiente para {product} no dia {day}. "
+                        "Disponível {available}, solicitado {requested}.".format(
+                            product=product_label,
                             day=current_date.strftime("%d/%m/%Y"),
                             available=available_qty,
                             requested=qty,
                         )
                     )
             current_date += timedelta(days=1)
-        if errors:
-            message = "Estoque insuficiente para os itens solicitados:\n"
-            message += "\n".join(errors)
-            raise ValueError(message)
 
-    def _load_total_qtys(self, product_ids: Iterable[int]) -> dict[int, int]:
+    def _aggregate_items(
+        self, items: Iterable[tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        aggregated: dict[int, int] = {}
+        for product_id, qty in items:
+            aggregated[int(product_id)] = aggregated.get(int(product_id), 0) + int(qty)
+        return list(aggregated.items())
+
+    def _load_product_details(self, product_ids: Iterable[int]) -> dict[int, dict]:
         ids = sorted({int(product_id) for product_id in product_ids})
         if not ids:
             return {}
         placeholders = ", ".join(["?"] * len(ids))
         try:
             rows = self._connection.execute(
-                f"SELECT id, total_qty FROM products WHERE id IN ({placeholders})",
+                f"SELECT id, name, total_qty FROM products WHERE id IN ({placeholders})",
                 ids,
             ).fetchall()
         except Exception:
             self._logger.exception("Failed to load products for availability check")
             raise
-        return {int(row["id"]): int(row["total_qty"]) for row in rows}
+        return {
+            int(row["id"]): {"name": row["name"], "total_qty": int(row["total_qty"])}
+            for row in rows
+        }

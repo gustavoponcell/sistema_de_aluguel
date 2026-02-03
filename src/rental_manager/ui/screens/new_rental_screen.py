@@ -86,6 +86,8 @@ class NewRentalScreen(BaseScreen):
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("dd/MM/yyyy")
         self.start_date_input.dateChanged.connect(self._sync_end_date_min)
+        self.start_date_input.dateChanged.connect(self._on_dates_changed)
+        self.end_date_input.dateChanged.connect(self._on_dates_changed)
         self._sync_end_date_min(self.start_date_input.date())
 
         dates_row = QtWidgets.QHBoxLayout()
@@ -229,6 +231,13 @@ class NewRentalScreen(BaseScreen):
         self.end_date_input.setMinimumDate(minimum_end_date)
         if self.end_date_input.date() < minimum_end_date:
             self.end_date_input.setDate(minimum_end_date)
+
+    def _on_dates_changed(self) -> None:
+        if not self._items:
+            return
+        if not self._validate_dates():
+            return
+        self._validate_inventory(self._items)
 
     def _load_customers(self) -> None:
         try:
@@ -456,7 +465,8 @@ class NewRentalScreen(BaseScreen):
         _event_date, start_date, end_date = self._get_dates()
         aggregated = self._aggregate_items(items)
         try:
-            self._services.inventory_service.validate_request(
+            self._services.inventory_service.validate_rental_availability(
+                None,
                 aggregated,
                 start_date.isoformat(),
                 end_date.isoformat(),

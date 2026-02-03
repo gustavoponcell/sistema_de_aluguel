@@ -576,6 +576,8 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("dd/MM/yyyy")
         self.start_date_input.dateChanged.connect(self._sync_end_date_min)
+        self.start_date_input.dateChanged.connect(self._on_dates_changed)
+        self.end_date_input.dateChanged.connect(self._on_dates_changed)
 
         dates_row = QtWidgets.QHBoxLayout()
         dates_row.addWidget(QtWidgets.QLabel("Evento"))
@@ -795,6 +797,8 @@ class RentalEditDialog(QtWidgets.QDialog):
             qty=qty,
             unit_price=unit_price,
         )
+        if not self._validate_inventory(updated_items):
+            return
         self._items = updated_items
         self._editing_index = None
         self.add_item_button.setText("Adicionar item")
@@ -897,6 +901,13 @@ class RentalEditDialog(QtWidgets.QDialog):
         if self.end_date_input.date() < minimum_end_date:
             self.end_date_input.setDate(minimum_end_date)
 
+    def _on_dates_changed(self) -> None:
+        if not self._items:
+            return
+        if not self._validate_dates():
+            return
+        self._validate_inventory(self._items)
+
     def _validate_dates(self) -> bool:
         _event_date, start_date, end_date = self._get_dates()
         if start_date >= end_date:
@@ -916,6 +927,27 @@ class RentalEditDialog(QtWidgets.QDialog):
             _show_warning(self, "Adicione ao menos um item ao aluguel.")
             return False
         return True
+
+    def _validate_inventory(self, items: List[RentalItemDraft]) -> bool:
+        _event_date, start_date, end_date = self._get_dates()
+        aggregated = self._aggregate_items(items)
+        try:
+            self._services.inventory_service.validate_rental_availability(
+                self._rental_id,
+                aggregated,
+                start_date.isoformat(),
+                end_date.isoformat(),
+            )
+        except ValueError as exc:
+            _show_warning(self, str(exc))
+            return False
+        return True
+
+    def _aggregate_items(self, items: List[RentalItemDraft]) -> List[tuple[int, int]]:
+        aggregated: dict[int, int] = {}
+        for item in items:
+            aggregated[item.product_id] = aggregated.get(item.product_id, 0) + item.qty
+        return list(aggregated.items())
 
     def _build_items_payload(self) -> List[dict[str, object]]:
         return [

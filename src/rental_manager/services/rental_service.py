@@ -26,12 +26,19 @@ class RentalService:
     def _items_for_validation(
         self, items: Iterable[dict[str, object]]
     ) -> list[tuple[int, int]]:
-        return [(int(item["product_id"]), int(item["qty"])) for item in items]
+        aggregated: dict[int, int] = {}
+        for item in items:
+            product_id = int(item["product_id"])
+            aggregated[product_id] = aggregated.get(product_id, 0) + int(item["qty"])
+        return list(aggregated.items())
 
     def _items_from_rental_items(
         self, items: Iterable[RentalItem]
     ) -> list[tuple[int, int]]:
-        return [(item.product_id, item.qty) for item in items]
+        aggregated: dict[int, int] = {}
+        for item in items:
+            aggregated[item.product_id] = aggregated.get(item.product_id, 0) + item.qty
+        return list(aggregated.items())
 
     def _get_rental_with_items(self, rental_id: int) -> tuple[Rental, list[RentalItem]]:
         rental_data = rental_repo.get_rental_with_items(

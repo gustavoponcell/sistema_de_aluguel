@@ -264,13 +264,20 @@ start_date <= D < end_date
 ```
 
 - A data de término é **exclusiva**.
+- Isso permite que um aluguel termine no mesmo dia em que outro começa.
+
+**Exemplo rápido**
+- Aluguel A: início 10/05, fim 12/05 → bloqueia **10/05 e 11/05**.
+- Aluguel B: início 12/05, fim 13/05 → **permitido** (não há sobreposição).
 
 **Quais status bloqueiam estoque**
-- `confirmed` e `completed`.
+- `draft` (Rascunho), `confirmed` (Confirmado) e `completed` (Concluído), que são os
+  status reais do app.
 
 **Validação ao criar/editar aluguel**
 - Para cada item e cada dia do intervalo, verifica se há quantidade disponível.
-- Se faltar estoque em qualquer dia, a operação é bloqueada com mensagem detalhada.
+- Se faltar estoque em qualquer dia, a operação é bloqueada mostrando o **primeiro conflito**
+  com produto, data, disponível e solicitado.
 
 **Edição de aluguel existente**
 - Na validação de edição, o sistema **exclui o próprio aluguel** do cálculo (para não bloquear a si mesmo).
@@ -350,11 +357,11 @@ start_date <= D < end_date
 **Componentes**
 - Data de referência para calcular “na rua”.
 - Busca por nome.
-- Tabela: nome, categoria, total, na rua, comigo, preço padrão.
+- Tabela: produto, total, na rua, comigo.
 - Botões: novo, editar, desativar.
 
 **Ações e comportamento**
-- “Na rua” é a soma das reservas de aluguéis confirmados/concluídos na data.
+- “Na rua” é a soma das reservas de aluguéis em rascunho/confirmados/concluídos na data.
 - “Comigo” = `total_qty - na_rua`.
 
 **Validações**
