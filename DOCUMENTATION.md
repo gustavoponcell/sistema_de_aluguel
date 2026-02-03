@@ -397,15 +397,28 @@ start_date <= D < end_date
 - Ver resumo financeiro por período.
 
 **Componentes**
-- Filtro por data (evento).
+- Filtro por data (período baseado em `rentals.start_date`).
+- Abas: **Resumo** (dashboard) e **Relatórios**.
 - Cards: total recebido, total a receber, quantidade de aluguéis.
-- Tabela com aluguéis do período.
-- Botão de exportação CSV.
+- Gráficos e rankings (offline) no resumo.
+- Tabela com aluguéis do período + botão de exportação CSV nos relatórios.
 
 **Regras**
-- Calcula por `event_date`.
+- **Base temporal**: o período da tela usa `rentals.start_date` (datas ISO `YYYY-MM-DD`).
+- **Receita prevista por mês**: soma `rentals.total_value` agrupado por mês de `start_date`.
+- **Aluguéis por mês**: contagem por mês de `start_date`.
+- **Recebido**:
+  - Se a tabela `payments` existir: soma `payments.amount` por `paid_at` no período.
+  - Se não existir: usa `rentals.paid_value` do período (agrupado por `start_date`).
+- **A receber**: soma de `(total_value - paid_value)` para aluguéis confirmados, por mês de `start_date`.
+- **Ranking de produtos (quantidade)**: soma `rental_items.qty` por produto no período.
+- **Ranking de produtos (receita)**:
+  - Usa `rental_items.unit_price` quando disponível.
+  - Caso contrário, usa `products.unit_price`.
+  - Se nenhum preço estiver cadastrado, o gráfico é ocultado com aviso ao usuário.
 - Ignora aluguéis cancelados.
 - CSV salvo em `%APPDATA%\RentalManager\exports`.
+- Se Matplotlib não estiver disponível, o app tenta QtCharts. Se ambos falharem, os gráficos são ocultados com aviso; KPIs e tabelas continuam funcionando.
 
 ---
 

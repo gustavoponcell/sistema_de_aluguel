@@ -35,6 +35,18 @@ class RentalFinanceRow:
     paid_value: float
 
 
+@dataclass(frozen=True)
+class MonthlyMetric:
+    month: str
+    value: float
+
+
+@dataclass(frozen=True)
+class RankedMetric:
+    label: str
+    value: float
+
+
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -97,6 +109,31 @@ def _optional_connection(
         yield new_connection
     finally:
         new_connection.close()
+
+
+def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
+    row = connection.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = ?
+        """,
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _column_exists(
+    connection: sqlite3.Connection,
+    table: str,
+    column: str,
+) -> bool:
+    try:
+        rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    except sqlite3.Error:
+        return False
+    return any(row["name"] == column for row in rows)
 
 
 def create_rental(
@@ -365,20 +402,32 @@ def get_finance_report_by_period(
     *,
     connection: Optional[sqlite3.Connection] = None,
 ) -> FinanceReport:
-    """Return aggregate finance totals for the given event date period."""
+    """Return aggregate finance totals for the given start date period."""
     logger = get_logger("rental_repo")
     try:
         with _optional_connection(connection) as conn:
-            received_row = conn.execute(
-                """
-                SELECT COALESCE(SUM(amount), 0) AS total_received
-                FROM payments
-                WHERE paid_at IS NOT NULL
-                  AND date(paid_at) >= ?
-                  AND date(paid_at) <= ?
-                """,
-                (start_date, end_date),
-            ).fetchone()
+            if _table_exists(conn, "payments"):
+                received_row = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(amount), 0) AS total_received
+                    FROM payments
+                    WHERE paid_at IS NOT NULL
+                      AND date(paid_at) >= ?
+                      AND date(paid_at) <= ?
+                    """,
+                    (start_date, end_date),
+                ).fetchone()
+            else:
+                received_row = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(paid_value), 0) AS total_received
+                    FROM rentals
+                    WHERE start_date >= ?
+                      AND start_date <= ?
+                      AND status != 'canceled'
+                    """,
+                    (start_date, end_date),
+                ).fetchone()
             totals_row = conn.execute(
                 """
                 SELECT
@@ -395,8 +444,8 @@ def get_finance_report_by_period(
                     ), 0) AS total_to_receive,
                     COUNT(*) AS rentals_count
                 FROM rentals r
-                WHERE r.event_date >= ?
-                  AND r.event_date <= ?
+                WHERE r.start_date >= ?
+                  AND r.start_date <= ?
                   AND r.status != 'canceled'
                 """,
                 (start_date, end_date),
@@ -421,7 +470,7 @@ def list_rentals_by_period(
     *,
     connection: Optional[sqlite3.Connection] = None,
 ) -> list[RentalFinanceRow]:
-    """List rentals for finance reports in the given event date period."""
+    """List rentals for finance reports in the given start date period."""
     logger = get_logger("rental_repo")
     query = """
         SELECT
@@ -436,8 +485,8 @@ def list_rentals_by_period(
             c.name AS customer_name
         FROM rentals r
         JOIN customers c ON c.id = r.customer_id
-        WHERE r.event_date >= ?
-          AND r.event_date <= ?
+        WHERE r.start_date >= ?
+          AND r.start_date <= ?
           AND r.status != 'canceled'
         ORDER BY r.event_date, r.start_date, r.id
     """
@@ -463,6 +512,238 @@ def list_rentals_by_period(
             )
         )
     return result
+
+
+def list_monthly_revenue(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[MonthlyMetric]:
+    """Sum rental total_value by month using rentals.start_date."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            strftime('%Y-%m', r.start_date) AS month,
+            COALESCE(SUM(r.total_value), 0) AS total_value
+        FROM rentals r
+        WHERE r.start_date >= ?
+          AND r.start_date <= ?
+          AND r.status != 'canceled'
+        GROUP BY strftime('%Y-%m', r.start_date)
+        ORDER BY month
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, (start_date, end_date)).fetchall()
+    except Exception:
+        logger.exception("Failed to list monthly revenue")
+        raise
+    return [
+        MonthlyMetric(month=row["month"], value=float(row["total_value"] or 0))
+        for row in rows
+        if row["month"]
+    ]
+
+
+def list_monthly_rentals(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[MonthlyMetric]:
+    """Count rentals by month using rentals.start_date."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            strftime('%Y-%m', r.start_date) AS month,
+            COUNT(*) AS total_count
+        FROM rentals r
+        WHERE r.start_date >= ?
+          AND r.start_date <= ?
+          AND r.status != 'canceled'
+        GROUP BY strftime('%Y-%m', r.start_date)
+        ORDER BY month
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, (start_date, end_date)).fetchall()
+    except Exception:
+        logger.exception("Failed to list monthly rentals")
+        raise
+    return [
+        MonthlyMetric(month=row["month"], value=float(row["total_count"] or 0))
+        for row in rows
+        if row["month"]
+    ]
+
+
+def list_monthly_received(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[MonthlyMetric]:
+    """Sum received amounts by month using payments.paid_at or rentals.start_date."""
+    logger = get_logger("rental_repo")
+    try:
+        with _optional_connection(connection) as conn:
+            if _table_exists(conn, "payments"):
+                query = """
+                    SELECT
+                        strftime('%Y-%m', paid_at) AS month,
+                        COALESCE(SUM(amount), 0) AS total_received
+                    FROM payments
+                    WHERE paid_at IS NOT NULL
+                      AND date(paid_at) >= ?
+                      AND date(paid_at) <= ?
+                    GROUP BY strftime('%Y-%m', paid_at)
+                    ORDER BY month
+                """
+                rows = conn.execute(query, (start_date, end_date)).fetchall()
+            else:
+                query = """
+                    SELECT
+                        strftime('%Y-%m', r.start_date) AS month,
+                        COALESCE(SUM(r.paid_value), 0) AS total_received
+                    FROM rentals r
+                    WHERE r.start_date >= ?
+                      AND r.start_date <= ?
+                      AND r.status != 'canceled'
+                    GROUP BY strftime('%Y-%m', r.start_date)
+                    ORDER BY month
+                """
+                rows = conn.execute(query, (start_date, end_date)).fetchall()
+    except Exception:
+        logger.exception("Failed to list monthly received values")
+        raise
+    return [
+        MonthlyMetric(month=row["month"], value=float(row["total_received"] or 0))
+        for row in rows
+        if row["month"]
+    ]
+
+
+def list_monthly_to_receive(
+    start_date: str,
+    end_date: str,
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[MonthlyMetric]:
+    """Sum open receivables by month using rentals.start_date."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            strftime('%Y-%m', r.start_date) AS month,
+            COALESCE(SUM(
+                CASE
+                    WHEN r.status = 'confirmed'
+                    THEN CASE
+                        WHEN (r.total_value - r.paid_value) > 0
+                        THEN (r.total_value - r.paid_value)
+                        ELSE 0
+                    END
+                    ELSE 0
+                END
+            ), 0) AS total_open
+        FROM rentals r
+        WHERE r.start_date >= ?
+          AND r.start_date <= ?
+          AND r.status != 'canceled'
+        GROUP BY strftime('%Y-%m', r.start_date)
+        ORDER BY month
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, (start_date, end_date)).fetchall()
+    except Exception:
+        logger.exception("Failed to list monthly receivables")
+        raise
+    return [
+        MonthlyMetric(month=row["month"], value=float(row["total_open"] or 0))
+        for row in rows
+        if row["month"]
+    ]
+
+
+def list_top_products_by_qty(
+    start_date: str,
+    end_date: str,
+    *,
+    limit: int = 10,
+    connection: Optional[sqlite3.Connection] = None,
+) -> list[RankedMetric]:
+    """Return top products by rented quantity for the given start date period."""
+    logger = get_logger("rental_repo")
+    query = """
+        SELECT
+            COALESCE(p.name, 'Produto removido') AS product_name,
+            COALESCE(SUM(ri.qty), 0) AS total_qty
+        FROM rental_items ri
+        JOIN rentals r ON r.id = ri.rental_id
+        LEFT JOIN products p ON p.id = ri.product_id
+        WHERE r.start_date >= ?
+          AND r.start_date <= ?
+          AND r.status != 'canceled'
+        GROUP BY ri.product_id, p.name
+        ORDER BY total_qty DESC
+        LIMIT ?
+    """
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(query, (start_date, end_date, limit)).fetchall()
+    except Exception:
+        logger.exception("Failed to list top products by quantity")
+        raise
+    return [
+        RankedMetric(label=row["product_name"], value=float(row["total_qty"] or 0))
+        for row in rows
+    ]
+
+
+def list_top_products_by_revenue(
+    start_date: str,
+    end_date: str,
+    *,
+    limit: int = 10,
+    connection: Optional[sqlite3.Connection] = None,
+) -> Optional[list[RankedMetric]]:
+    """Return top products by revenue, if price columns are available."""
+    logger = get_logger("rental_repo")
+    try:
+        with _optional_connection(connection) as conn:
+            has_item_price = _column_exists(conn, "rental_items", "unit_price")
+            has_product_price = _column_exists(conn, "products", "unit_price")
+            if not has_item_price and not has_product_price:
+                return None
+            if has_item_price:
+                price_expr = "ri.qty * ri.unit_price"
+                join_products = "LEFT JOIN products p ON p.id = ri.product_id"
+            else:
+                price_expr = "ri.qty * p.unit_price"
+                join_products = "JOIN products p ON p.id = ri.product_id"
+            query = f"""
+                SELECT
+                    COALESCE(p.name, 'Produto removido') AS product_name,
+                    COALESCE(SUM({price_expr}), 0) AS total_revenue
+                FROM rental_items ri
+                JOIN rentals r ON r.id = ri.rental_id
+                {join_products}
+                WHERE r.start_date >= ?
+                  AND r.start_date <= ?
+                  AND r.status != 'canceled'
+                GROUP BY ri.product_id, p.name
+                ORDER BY total_revenue DESC
+                LIMIT ?
+            """
+            rows = conn.execute(query, (start_date, end_date, limit)).fetchall()
+    except Exception:
+        logger.exception("Failed to list top products by revenue")
+        raise
+    return [
+        RankedMetric(label=row["product_name"], value=float(row["total_revenue"] or 0))
+        for row in rows
+    ]
 
 
 def list_rentals(
