@@ -11,10 +11,11 @@ from typing import Iterable
 from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import PaymentStatus, RentalStatus
-from rental_manager.paths import get_exports_dir
+from rental_manager.paths import get_config_path, get_exports_dir
 from rental_manager.repositories import rental_repo
 
 from rental_manager.ui.app_services import AppServices
+from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
 
 
 class FinanceScreen(QtWidgets.QWidget):
@@ -124,25 +125,64 @@ class FinanceScreen(QtWidgets.QWidget):
         layout.addLayout(export_layout)
 
         layout.addStretch()
+        self.apply_kpi_card_style()
 
     def _create_summary_card(self, title: str, value: str) -> "_SummaryCard":
         container = QtWidgets.QFrame()
         container.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        container.setStyleSheet(
-            "QFrame { background: #f5f6f7; border-radius: 8px; }"
-        )
+        container.setObjectName("KpiCard")
         card_layout = QtWidgets.QVBoxLayout(container)
         card_layout.setContentsMargins(16, 12, 16, 12)
 
         title_label = QtWidgets.QLabel(title)
-        title_label.setStyleSheet("color: #4a4a4a; font-weight: 600;")
+        title_label.setObjectName("KpiTitle")
         value_label = QtWidgets.QLabel(value)
-        value_label.setStyleSheet("font-size: 20px; font-weight: 700;")
+        value_label.setObjectName("KpiValue")
 
         card_layout.addWidget(title_label)
         card_layout.addWidget(value_label)
 
         return _SummaryCard(container=container, value_label=value_label)
+
+    def apply_kpi_card_style(self) -> None:
+        config_path = get_config_path()
+        settings = load_theme_settings(config_path)
+        resolved_theme = resolve_theme_choice(settings.theme)
+        if resolved_theme == "dark":
+            stylesheet = """
+            QFrame#KpiCard {
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                border-radius: 10px;
+            }
+            QLabel#KpiTitle {
+                color: rgba(255, 255, 255, 0.78);
+                font-weight: 600;
+            }
+            QLabel#KpiValue {
+                color: rgba(255, 255, 255, 0.95);
+                font-size: 22px;
+                font-weight: 700;
+            }
+            """
+        else:
+            stylesheet = """
+            QFrame#KpiCard {
+                background: #ffffff;
+                border: 1px solid rgba(0, 0, 0, 0.10);
+                border-radius: 10px;
+            }
+            QLabel#KpiTitle {
+                color: rgba(0, 0, 0, 0.70);
+                font-weight: 600;
+            }
+            QLabel#KpiValue {
+                color: rgba(0, 0, 0, 0.92);
+                font-size: 22px;
+                font-weight: 700;
+            }
+            """
+        self.setStyleSheet(stylesheet)
 
     def _load_data(self) -> None:
         start_date, end_date = self._current_period()
@@ -160,6 +200,7 @@ class FinanceScreen(QtWidgets.QWidget):
         self._count_card.value_label.setText(str(report.rentals_count))
 
         self._populate_table(self._rentals)
+        self.apply_kpi_card_style()
 
     def _current_period(self) -> tuple[str, str]:
         start_qdate = self._start_date.date()
