@@ -1,6 +1,16 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
+call :main > "%~dp0run_app.log" 2>&1
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" (
+  echo [ERRO] A execucao falhou. Consulte o log em "%~dp0run_app.log".
+  echo [ERRO] A execucao falhou. Consulte o log em "%~dp0run_app.log".>>"%~dp0run_app.log"
+  pause
+)
+exit /b %EXIT_CODE%
+
+:main
 REM ==============================
 REM RentalManager launcher (Windows)
 REM - Vai para a pasta do projeto
@@ -9,66 +19,95 @@ REM - Instala requirements quando mudarem
 REM - Roda o app
 REM ==============================
 
-REM 1) Ir para a pasta onde este .bat está (raiz do projeto)
+echo [ETAPA] Indo para a raiz do projeto...
 cd /d "%~dp0"
 
-REM 2) Caminhos (reais) baseados na pasta do projeto
-set "PROJ_DIR=%CD%"
-set "VENV_DIR=%PROJ_DIR%\.venv"
-set "REQ_FILE=%PROJ_DIR%\requirements.txt"
-set "SRC_DIR=%PROJ_DIR%\src"
+REM Caminhos (reais) baseados na pasta do projeto
+set "PROJ_DIR=%~dp0"
+set "VENV_DIR=%PROJ_DIR%.venv"
+set "REQ_FILE=%PROJ_DIR%requirements.txt"
+set "SRC_DIR=%PROJ_DIR%src"
+set "PKG_DIR=%SRC_DIR%\rental_manager"
+set "INIT_FILE=%PKG_DIR%\__init__.py"
+set "APP_FILE=%PKG_DIR%\app.py"
 set "HASH_FILE=%VENV_DIR%\requirements.sha256"
 
-REM 3) Checagens
+echo [ETAPA] Validando arquivos e pastas obrigatorios...
 if not exist "%REQ_FILE%" (
   echo [ERRO] requirements.txt nao encontrado em:
   echo   %REQ_FILE%
-  pause
   exit /b 1
 )
 
 if not exist "%SRC_DIR%" (
   echo [ERRO] Pasta src nao encontrada em:
   echo   %SRC_DIR%
-  pause
   exit /b 1
 )
 
-REM 4) Garantir que python existe
+if not exist "%PKG_DIR%" (
+  echo [ERRO] Pasta src\rental_manager nao encontrada em:
+  echo   %PKG_DIR%
+  exit /b 1
+)
+
+if not exist "%INIT_FILE%" (
+  echo [AVISO] __init__.py nao encontrado. Criando arquivo vazio em:
+  echo   %INIT_FILE%
+  type NUL > "%INIT_FILE%"
+)
+
+if not exist "%INIT_FILE%" (
+  echo [ERRO] Falha ao criar %INIT_FILE%.
+  exit /b 1
+)
+
+if not exist "%APP_FILE%" (
+  echo [ERRO] app.py nao encontrado em:
+  echo   %APP_FILE%
+  exit /b 1
+)
+
+echo [ETAPA] Verificando Python no PATH...
 where python >nul 2>&1
 if errorlevel 1 (
   echo [ERRO] Python nao encontrado no PATH.
   echo Instale o Python e marque "Add Python to PATH".
-  pause
   exit /b 1
 )
 
-REM 5) Criar venv se nao existir
+echo [ETAPA] Criando ambiente virtual (se necessario)...
 if not exist "%VENV_DIR%\Scripts\python.exe" (
-  echo [INFO] Criando ambiente virtual em "%VENV_DIR%"...
   python -m venv "%VENV_DIR%"
   if errorlevel 1 (
     echo [ERRO] Falha ao criar o ambiente virtual.
-    pause
     exit /b 1
   )
 )
 
-REM 6) Ativar venv
+echo [ETAPA] Ativando ambiente virtual...
 call "%VENV_DIR%\Scripts\activate.bat"
 if errorlevel 1 (
   echo [ERRO] Falha ao ativar o ambiente virtual.
-  pause
   exit /b 1
 )
 
-REM 7) Calcular hash do requirements.txt (para instalar deps apenas quando mudar)
+set "PYTHONPATH=%PROJ_DIR%src"
+
+echo [ETAPA] Diagnosticos do ambiente...
+python --version
+where python
+pip --version
+python -c "import sys; print(sys.path)"
+python -c "import os; print(os.getcwd())"
+python -c "import rental_manager; print('OK import rental_manager', rental_manager.__file__)"
+
+echo [ETAPA] Verificando dependencias (requirements.txt)...
 set "REQ_HASH="
 for /f "usebackq delims=" %%H in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "(Get-FileHash -Algorithm SHA256 '%REQ_FILE%').Hash"`) do set "REQ_HASH=%%H"
 
 if "%REQ_HASH%"=="" (
   echo [ERRO] Nao foi possivel calcular o hash do requirements.txt.
-  pause
   exit /b 1
 )
 
@@ -78,17 +117,16 @@ if exist "%HASH_FILE%" (
 )
 
 if /I not "%REQ_HASH%"=="%OLD_HASH%" (
-  echo [INFO] Instalando/atualizando dependencias (requirements mudou ou primeira execucao)...
+  echo [ETAPA] Instalando/atualizando dependencias (requirements mudou ou primeira execucao)...
   python -m pip install --upgrade pip
   if errorlevel 1 (
     echo [AVISO] Nao foi possivel atualizar o pip. Continuando...
   )
 
-  pip install -r "%REQ_FILE%"
+  python -m pip install -r "%REQ_FILE%"
   if errorlevel 1 (
     echo [ERRO] Falha ao instalar dependencias.
     echo Verifique sua internet ou permissao de instalacao.
-    pause
     exit /b 1
   )
 
@@ -97,9 +135,20 @@ if /I not "%REQ_HASH%"=="%OLD_HASH%" (
   echo [INFO] Dependencias OK (requirements.txt nao mudou).
 )
 
-REM 8) Rodar app (layout src)
-set "PYTHONPATH=%SRC_DIR%"
-python -m rental_manager.app
+echo [ETAPA] Rodando aplicativo (layout src)...
+python -m rental_manager
+set "APP_EXIT=%errorlevel%"
 
-endlocal
+if not "%APP_EXIT%"=="0" (
+  echo [ERRO] Execucao via "-m rental_manager" falhou (errorlevel=%APP_EXIT%).
+  echo [ETAPA] Tentando fallback com app.py direto...
+  python "%APP_FILE%"
+  set "APP_EXIT=%errorlevel%"
+)
 
+if not "%APP_EXIT%"=="0" (
+  echo [ERRO] Aplicativo nao iniciou corretamente (errorlevel=%APP_EXIT%).
+  exit /b %APP_EXIT%
+)
+
+exit /b 0
