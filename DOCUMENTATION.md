@@ -120,15 +120,22 @@ Para gerar o instalador `GestaoInteligente-Setup-<versao>.exe`, use:
 ### 3.7 Atualizações
 No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 - Se existir atualização, o app mostra versão atual, versão disponível e notas.
-- O botão **Baixar e instalar** abre o instalador no navegador.
-- Caso o repositório não seja detectado, configure em `%APPDATA%\RentalManager\config.json`:
+- O botão **Baixar atualização** abre o instalador no navegador (por enquanto não há download in-app).
+- No build oficial, o repositório do updater já vem configurado automaticamente.
+- Configuração em `%APPDATA%\RentalManager\config.json`:
   ```json
   {
     "updates": {
-      "repo": "OWNER/REPO"
+      "provider": "github",
+      "owner": "gustavoponcell",
+      "repo": "instalador",
+      "asset_prefix": "GestaoInteligente-Setup-",
+      "enabled": true
     }
   }
   ```
+  - `asset_prefix` define um prefixo para localizar o instalador `.exe` dentro dos assets do GitHub Release.
+  - Se nenhum asset corresponder ao prefixo, o app procura qualquer `.exe` disponível.
 
 ---
 

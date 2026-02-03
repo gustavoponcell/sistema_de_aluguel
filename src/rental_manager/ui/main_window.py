@@ -205,6 +205,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self, "Atualizações", result.message or "Você já está atualizado."
             )
             return
+        if result.status == "no_connection":
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Atualizações",
+                result.message or "Sem conexão para verificar atualizações.",
+            )
+            return
+        if result.status == "disabled":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Atualizações",
+                result.message or "Atualizações desativadas.",
+            )
+            return
         if result.status == "no_repo":
             QtWidgets.QMessageBox.warning(
                 self,
@@ -228,11 +242,11 @@ class MainWindow(QtWidgets.QMainWindow):
             f"Versão atual: {result.current_version}<br>"
             f"Versão disponível: {result.latest_version}"
         )
-        message_box.setInformativeText("Deseja baixar e instalar a atualização?")
+        message_box.setInformativeText("Deseja baixar a atualização?")
         if result.notes:
             message_box.setDetailedText(result.notes[:4000])
         download_button = message_box.addButton(
-            "Baixar e instalar", QtWidgets.QMessageBox.AcceptRole
+            "Baixar atualização", QtWidgets.QMessageBox.AcceptRole
         )
         message_box.addButton("Cancelar", QtWidgets.QMessageBox.RejectRole)
         message_box.exec()
@@ -243,5 +257,5 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.warning(
                     self,
                     "Atualizações",
-                    "Não foi possível encontrar o instalador para download.",
+                    "Release encontrada, mas nenhum instalador .exe foi localizado nos assets.",
                 )

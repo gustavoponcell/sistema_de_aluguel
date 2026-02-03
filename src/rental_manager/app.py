@@ -28,6 +28,7 @@ from rental_manager.ui.data_bus import DataEventBus
 from rental_manager.ui.main_window import MainWindow
 from rental_manager.utils.backup import export_backup, load_backup_settings
 from rental_manager.utils.theme import ThemeManager
+from rental_manager.utils.updater import ensure_update_settings
 from rental_manager.version import __app_name__, __version__
 
 
@@ -45,6 +46,10 @@ def main() -> int:
     config = AppConfig()
     logger = get_logger(__name__)
     logger.info("Starting %s v%s", __app_name__, __version__)
+    try:
+        ensure_update_settings(get_config_path())
+    except Exception:
+        logger.exception("Falha ao carregar configurações de atualização.")
     backup_settings = load_backup_settings(get_config_path())
     if backup_settings.auto_backup_on_start:
         try:

@@ -4,15 +4,38 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rental_manager.utils.config_store import load_config_data
+from rental_manager.logging_config import get_logger
+from rental_manager.utils.config_store import load_config_data, save_config_data
 
 GITHUB_API_BASE = "https://api.github.com/repos"
+DEFAULT_UPDATE_PROVIDER = "github"
+DEFAULT_UPDATE_OWNER = "gustavoponcell"
+DEFAULT_UPDATE_REPO = "instalador"
+DEFAULT_ASSET_PREFIX = "GestaoInteligente-Setup-"
+
+
+@dataclass(frozen=True)
+class UpdateSettings:
+    """Persisted updater settings."""
+
+    provider: str
+    owner: str
+    repo: str
+    asset_prefix: str
+    enabled: bool = True
+
+    @property
+    def repo_slug(self) -> str:
+        if not self.owner or not self.repo:
+            return ""
+        return f"{self.owner}/{self.repo}"
 
 
 @dataclass(frozen=True)
@@ -82,35 +105,115 @@ def get_repo_from_config(config_path: Path) -> str | None:
     return None
 
 
+def _coerce_update_settings(raw: dict[str, Any]) -> UpdateSettings:
+    provider = raw.get("provider")
+    if not isinstance(provider, str) or not provider.strip():
+        provider = DEFAULT_UPDATE_PROVIDER
+    else:
+        provider = provider.strip()
+
+    raw_owner = raw.get("owner")
+    owner = raw_owner.strip() if isinstance(raw_owner, str) else ""
+    raw_repo = raw.get("repo")
+    repo = raw_repo.strip() if isinstance(raw_repo, str) else ""
+    if not owner and "/" in repo:
+        owner, repo = repo.split("/", 1)
+        owner = owner.strip()
+        repo = repo.strip()
+    if not owner:
+        owner = DEFAULT_UPDATE_OWNER
+    if not repo:
+        repo = DEFAULT_UPDATE_REPO
+
+    asset_prefix = raw.get("asset_prefix")
+    if not isinstance(asset_prefix, str):
+        asset_prefix = DEFAULT_ASSET_PREFIX
+    else:
+        asset_prefix = asset_prefix.strip()
+
+    enabled = raw.get("enabled")
+    if not isinstance(enabled, bool):
+        enabled = True
+
+    return UpdateSettings(
+        provider=provider,
+        owner=owner,
+        repo=repo,
+        asset_prefix=asset_prefix,
+        enabled=enabled,
+    )
+
+
+def ensure_update_settings(config_path: Path) -> UpdateSettings:
+    """Ensure updater settings exist on disk and return them."""
+    data = load_config_data(config_path)
+    updates = data.get("updates")
+    if not isinstance(updates, dict):
+        updates = {}
+    settings = _coerce_update_settings(updates)
+    desired_updates = {
+        "provider": settings.provider,
+        "owner": settings.owner,
+        "repo": settings.repo,
+        "asset_prefix": settings.asset_prefix,
+        "enabled": settings.enabled,
+    }
+    if updates != desired_updates:
+        data["updates"] = desired_updates
+        save_config_data(config_path, data)
+    return settings
+
+
+def load_update_settings(config_path: Path) -> UpdateSettings:
+    data = load_config_data(config_path)
+    updates = data.get("updates")
+    if not isinstance(updates, dict):
+        updates = {}
+    return _coerce_update_settings(updates)
+
+
 def resolve_repo(config_path: Path) -> str | None:
+    settings = load_update_settings(config_path)
+    if settings.provider == "github" and settings.repo_slug:
+        return settings.repo_slug
     repo = get_repo_from_git_config()
     if repo:
         return repo
     return get_repo_from_config(config_path)
 
 
-def _select_asset(assets: list[dict[str, Any]], version: str) -> str | None:
-    normalized_version = normalize_version(version)
-    patterns = [
-        re.compile(r".*GestaoInteligente-Setup", re.IGNORECASE),
-        re.compile(rf".*-Setup-{re.escape(normalized_version)}\.exe$", re.IGNORECASE),
-        re.compile(r".*Setup\.exe$", re.IGNORECASE),
-    ]
+def _select_asset(
+    assets: list[dict[str, Any]], asset_prefix: str | None
+) -> str | None:
+    normalized_prefix = asset_prefix.strip().lower() if asset_prefix else ""
     for asset in assets:
         name = asset.get("name")
         url = asset.get("browser_download_url")
         if not isinstance(name, str) or not isinstance(url, str):
             continue
-        for pattern in patterns:
-            if pattern.match(name):
-                return url
+        name_lower = name.lower()
+        if not name_lower.endswith(".exe"):
+            continue
+        if normalized_prefix and normalized_prefix in name_lower:
+            return url
+    for asset in assets:
+        name = asset.get("name")
+        url = asset.get("browser_download_url")
+        if not isinstance(name, str) or not isinstance(url, str):
+            continue
+        if name.lower().endswith(".exe"):
+            return url
     return None
 
 
 def _fetch_latest_release(repo: str) -> dict[str, Any]:
     url = f"{GITHUB_API_BASE}/{repo}/releases/latest"
     request = urllib.request.Request(
-        url, headers={"User-Agent": "GestaoInteligente-Updater"}
+        url,
+        headers={
+            "User-Agent": "GestaoInteligente-Updater",
+            "Accept": "application/vnd.github+json",
+        },
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         payload = response.read().decode("utf-8")
@@ -118,6 +221,14 @@ def _fetch_latest_release(repo: str) -> dict[str, Any]:
 
 
 def check_for_updates(config_path: Path, current_version: str) -> UpdateCheckResult:
+    logger = get_logger(__name__)
+    settings = load_update_settings(config_path)
+    if not settings.enabled:
+        return UpdateCheckResult(
+            status="disabled",
+            current_version=current_version,
+            message="Atualizações desativadas nas configurações.",
+        )
     repo = resolve_repo(config_path)
     if not repo:
         return UpdateCheckResult(
@@ -127,11 +238,33 @@ def check_for_updates(config_path: Path, current_version: str) -> UpdateCheckRes
         )
     try:
         release = _fetch_latest_release(repo)
-    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+    except urllib.error.HTTPError as exc:
+        logger.exception("Falha HTTP ao verificar atualizações.")
+        if exc.code == 403 and exc.headers.get("X-RateLimit-Remaining") == "0":
+            message = (
+                "Limite de requisições do GitHub atingido. Tente novamente mais tarde."
+            )
+        else:
+            message = f"Não foi possível verificar atualizações (HTTP {exc.code})."
         return UpdateCheckResult(
             status="error",
             current_version=current_version,
-            message=f"Não foi possível verificar atualizações ({exc}).",
+            message=message,
+        )
+    except (urllib.error.URLError, socket.timeout) as exc:
+        logger.exception("Falha de conexão ao verificar atualizações.")
+        message = "Sem conexão para verificar atualizações."
+        return UpdateCheckResult(
+            status="no_connection",
+            current_version=current_version,
+            message=message,
+        )
+    except json.JSONDecodeError as exc:
+        logger.exception("Resposta inválida do GitHub.")
+        return UpdateCheckResult(
+            status="error",
+            current_version=current_version,
+            message="Não foi possível verificar atualizações.",
         )
 
     tag_name = release.get("tag_name", "")
@@ -149,13 +282,13 @@ def check_for_updates(config_path: Path, current_version: str) -> UpdateCheckRes
             status="up_to_date",
             current_version=current_version,
             latest_version=latest_version,
-            message="Você já está na versão mais recente.",
+            message=f"Você já está na versão {current_version}.",
         )
 
     assets = release.get("assets", [])
     download_url = None
     if isinstance(assets, list):
-        download_url = _select_asset(assets, latest_version)
+        download_url = _select_asset(assets, settings.asset_prefix)
 
     notes = release.get("body")
     if isinstance(notes, str):
