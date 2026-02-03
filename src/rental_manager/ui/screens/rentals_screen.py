@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import html
+import time
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from rental_manager.db.connection import get_connection
 from rental_manager.domain.models import (
     Customer,
     Document,
@@ -22,8 +24,9 @@ from rental_manager.domain.models import (
     RentalItem,
     RentalStatus,
 )
-from rental_manager.paths import get_pdfs_dir
-from rental_manager.repositories import rental_repo
+from rental_manager.logging_config import get_logger
+from rental_manager.paths import get_db_path, get_pdfs_dir
+from rental_manager.repositories import CustomerRepo, rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
@@ -113,6 +116,111 @@ class RentalItemDraft:
     @property
     def line_total(self) -> float:
         return self.qty * self.unit_price
+
+
+@dataclass
+class RentalsLoadResult:
+    request_id: int
+    cache_key: Tuple[
+        Optional[str],
+        Optional[str],
+        Optional[RentalStatus],
+        Optional[PaymentStatus],
+        Optional[str],
+    ]
+    rentals: List[Rental]
+    rentals_today: List[Rental]
+    customers_map: dict[int, str]
+    timings: dict[str, float]
+
+
+class RentalsLoadSignals(QtCore.QObject):
+    completed = QtCore.Signal(object)
+    failed = QtCore.Signal(object)
+
+
+class RentalsLoadTask(QtCore.QRunnable):
+    def __init__(
+        self,
+        *,
+        request_id: int,
+        cache_key: Tuple[
+            Optional[str],
+            Optional[str],
+            Optional[RentalStatus],
+            Optional[PaymentStatus],
+            Optional[str],
+        ],
+        start_date: Optional[str],
+        end_date: Optional[str],
+        status: Optional[RentalStatus],
+        payment_status: Optional[PaymentStatus],
+        search: Optional[str],
+        today: str,
+    ) -> None:
+        super().__init__()
+        self.request_id = request_id
+        self.cache_key = cache_key
+        self.start_date = start_date
+        self.end_date = end_date
+        self.status = status
+        self.payment_status = payment_status
+        self.search = search
+        self.today = today
+        self.signals = RentalsLoadSignals()
+
+    def run(self) -> None:
+        logger = get_logger("Agenda")
+        connection = None
+        start_time = time.perf_counter()
+        try:
+            connection = get_connection(get_db_path())
+            query_start = time.perf_counter()
+            rentals = rental_repo.list_rentals(
+                start_date=self.start_date,
+                end_date=self.end_date,
+                status=self.status,
+                payment_status=self.payment_status,
+                search=self.search,
+                connection=connection,
+            )
+            rentals_today = rental_repo.list_rentals(
+                start_date=self.today,
+                end_date=self.today,
+                connection=connection,
+            )
+            customers = CustomerRepo(connection).list_all()
+            query_time = time.perf_counter() - query_start
+
+            transform_start = time.perf_counter()
+            customers_map = {
+                customer.id or 0: customer.name for customer in customers
+            }
+            transform_time = time.perf_counter() - transform_start
+
+            total_time = time.perf_counter() - start_time
+            timings = {
+                "query": query_time,
+                "transform": transform_time,
+                "total": total_time,
+            }
+            result = RentalsLoadResult(
+                request_id=self.request_id,
+                cache_key=self.cache_key,
+                rentals=rentals,
+                rentals_today=rentals_today,
+                customers_map=customers_map,
+                timings=timings,
+            )
+            self.signals.completed.emit(result)
+        except Exception:
+            logger.exception("Erro ao carregar dados da agenda.")
+            self.signals.failed.emit(
+                (self.request_id, "Não foi possível carregar a agenda de aluguéis.")
+            )
+        finally:
+            if connection is not None:
+                connection.close()
 
 
 class RentalDetailsDialog(QtWidgets.QDialog):
@@ -1027,6 +1135,20 @@ class RentalsScreen(BaseScreen):
         super().__init__(services)
         self._rentals: List[Rental] = []
         self._customers_map: dict[int, str] = {}
+        self._logger = get_logger("Agenda")
+        self._thread_pool = QtCore.QThreadPool.globalInstance()
+        self._load_sequence = 0
+        self._agenda_cache: dict[
+            Tuple[
+                Optional[str],
+                Optional[str],
+                Optional[RentalStatus],
+                Optional[PaymentStatus],
+                Optional[str],
+            ],
+            Tuple[float, RentalsLoadResult],
+        ] = {}
+        self._cache_ttl_seconds = 8.0
         self._latest_documents: dict[DocumentType, Optional[Document]] = {
             DocumentType.CONTRACT: None,
             DocumentType.RECEIPT: None,
@@ -1111,6 +1233,18 @@ class RentalsScreen(BaseScreen):
         filters_layout.setColumnStretch(5, 1)
 
         layout.addWidget(filters_group)
+
+        self._default_range_note = QtWidgets.QLabel(
+            "Exibindo próximos 7 dias. Marque “Filtrar por datas” para ajustar."
+        )
+        self._default_range_note.setStyleSheet("color: #666; font-size: 13px;")
+        layout.addWidget(self._default_range_note)
+
+        self._loading_label = QtWidgets.QLabel("Carregando dados da agenda…")
+        self._loading_label.setAlignment(QtCore.Qt.AlignCenter)
+        self._loading_label.setStyleSheet("color: #1F6FB2; font-weight: 600;")
+        self._loading_label.setVisible(False)
+        layout.addWidget(self._loading_label)
 
         self.table = QtWidgets.QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(
@@ -1245,9 +1379,14 @@ class RentalsScreen(BaseScreen):
     def refresh(self) -> None:
         self._load_rentals()
 
+    def _on_data_changed(self) -> None:
+        self._agenda_cache.clear()
+        super()._on_data_changed()
+
     def _toggle_date_filter(self, checked: bool) -> None:
         self.start_date_input.setEnabled(checked)
         self.end_date_input.setEnabled(checked)
+        self._default_range_note.setVisible(not checked)
         if checked:
             self._normalize_filter_dates()
 
@@ -1265,41 +1404,88 @@ class RentalsScreen(BaseScreen):
         if self.start_date_input.date() > self.end_date_input.date():
             self.end_date_input.setDate(self.start_date_input.date())
 
+    def _effective_period(self) -> tuple[Optional[str], Optional[str]]:
+        if self.date_filter_check.isChecked():
+            self._normalize_filter_dates()
+            start_date = self.start_date_input.date().toString("yyyy-MM-dd")
+            end_date = self.end_date_input.date().toString("yyyy-MM-dd")
+            return start_date, end_date
+        today = QtCore.QDate.currentDate()
+        start_date = today.toString("yyyy-MM-dd")
+        end_date = today.addDays(7).toString("yyyy-MM-dd")
+        return start_date, end_date
+
+    def _set_loading_state(self, loading: bool) -> None:
+        self._loading_label.setVisible(loading)
+        self.table.setEnabled(not loading)
+        if loading:
+            self._set_actions_enabled(False)
+
     def _load_rentals(self) -> None:
-        try:
-            customers = self._services.customer_repo.list_all()
-            self._customers_map = {
-                customer.id or 0: customer.name for customer in customers
-            }
-            start_date = None
-            end_date = None
-            if self.date_filter_check.isChecked():
-                self._normalize_filter_dates()
-                start_date = self.start_date_input.date().toString("yyyy-MM-dd")
-                end_date = self.end_date_input.date().toString("yyyy-MM-dd")
-            status = self.status_combo.currentData()
-            payment_status = self.payment_combo.currentData()
-            search = self.search_input.text().strip() or None
-            rentals = rental_repo.list_rentals(
-                start_date=start_date,
-                end_date=end_date,
-                status=status,
-                payment_status=payment_status,
-                search=search,
-                connection=self._services.connection,
-            )
-            today = QtCore.QDate.currentDate().toString("yyyy-MM-dd")
-            rentals_today = rental_repo.list_rentals(
-                start_date=today,
-                end_date=today,
-                connection=self._services.connection,
-            )
-        except Exception:
-            _show_error(self, "Não foi possível carregar a agenda de aluguéis.")
+        start_date, end_date = self._effective_period()
+        status = self.status_combo.currentData()
+        payment_status = self.payment_combo.currentData()
+        search = self.search_input.text().strip() or None
+        cache_key = (start_date, end_date, status, payment_status, search)
+
+        cached = self._agenda_cache.get(cache_key)
+        now = time.time()
+        if cached and now - cached[0] <= self._cache_ttl_seconds:
+            self._logger.info("Agenda cache hit para o período atual.")
+            self._apply_load_result(cached[1], cache_hit=True)
             return
-        self._rentals = rentals
+
+        self._set_loading_state(True)
+        self._load_sequence += 1
+        request_id = self._load_sequence
+        today = QtCore.QDate.currentDate().toString("yyyy-MM-dd")
+        task = RentalsLoadTask(
+            request_id=request_id,
+            cache_key=cache_key,
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            payment_status=payment_status,
+            search=search,
+            today=today,
+        )
+        task.signals.completed.connect(self._on_load_completed)
+        task.signals.failed.connect(self._on_load_failed)
+        self._thread_pool.start(task)
+
+    def _on_load_completed(self, result: RentalsLoadResult) -> None:
+        if result.request_id != self._load_sequence:
+            return
+        self._agenda_cache[result.cache_key] = (time.time(), result)
+        self._apply_load_result(result, cache_hit=False)
+
+    def _on_load_failed(self, payload: object) -> None:
+        if not isinstance(payload, tuple) or len(payload) != 2:
+            return
+        request_id, message = payload
+        if request_id != self._load_sequence:
+            return
+        self._set_loading_state(False)
+        _show_error(self, message)
+
+    def _apply_load_result(self, result: RentalsLoadResult, *, cache_hit: bool) -> None:
+        render_start = time.perf_counter()
+        self._customers_map = result.customers_map
+        self._rentals = result.rentals
         self._render_table()
-        self._render_today_summary(rentals_today)
+        self._render_today_summary(result.rentals_today)
+        render_time = time.perf_counter() - render_start
+        total_time = result.timings.get("total", 0.0) + render_time
+        if cache_hit:
+            self._logger.info("Agenda carregada do cache.")
+        self._logger.info(
+            "Tempo Agenda: query=%.3fs, transform=%.3fs, render=%.3fs, total=%.3fs",
+            result.timings.get("query", 0.0),
+            result.timings.get("transform", 0.0),
+            render_time,
+            total_time,
+        )
+        self._set_loading_state(False)
 
     def _render_today_summary(self, rentals_today: List[Rental]) -> None:
         count = len(rentals_today)
@@ -1326,6 +1512,7 @@ class RentalsScreen(BaseScreen):
 
     def _render_table(self) -> None:
         self.table.setRowCount(len(self._rentals))
+        self.table.setUpdatesEnabled(False)
         for row, rental in enumerate(self._rentals):
             customer_name = self._customers_map.get(rental.customer_id, "—")
             self.table.setItem(
@@ -1353,6 +1540,7 @@ class RentalsScreen(BaseScreen):
             )
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
+        self.table.setUpdatesEnabled(True)
         self._on_selection_changed()
 
     def _get_selected_rental(self) -> Optional[Rental]:

@@ -251,6 +251,13 @@ MIGRATIONS: list[Migration] = [
             ON documents(rental_id, generated_at);
         """,
     ),
+    Migration(
+        version=5,
+        script="""
+        CREATE INDEX IF NOT EXISTS idx_rentals_created_at
+            ON rentals(created_at);
+        """,
+    ),
 ]
 
 
