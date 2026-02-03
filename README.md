@@ -23,6 +23,25 @@ pip install -r requirements.txt
 python -m rental_manager.app
 ```
 
+## Rodar com um clique no Windows
+
+1) Execute o arquivo `run_app.bat` na raiz do projeto (duplo clique).
+   - Se a pasta `.venv` não existir, o script mostra as instruções para criar o
+     ambiente e instalar as dependências.
+
+### Criar um atalho na área de trabalho
+
+1) Clique com o botão direito em `run_app.bat` e selecione **Enviar para > Área de trabalho (criar atalho)**.
+2) Na área de trabalho, clique com o botão direito no atalho e escolha **Propriedades**.
+3) No campo **Iniciar em**, informe a pasta do projeto (ex.: `C:\\caminho\\para\\sistema_de_aluguel`).
+4) Clique em **OK**.
+
+### (Opcional) Trocar o ícone do atalho
+
+1) Clique com o botão direito no atalho e escolha **Propriedades**.
+2) Clique em **Alterar Ícone...**.
+3) Selecione um arquivo `.ico` (ex.: `assets\\app.ico`) e confirme.
+
 ## Onde fica o banco de dados
 
 O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`.
