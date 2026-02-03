@@ -25,7 +25,7 @@ from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.data_bus import DataEventBus
 from rental_manager.ui.main_window import MainWindow
 from rental_manager.utils.backup import export_backup, load_backup_settings
-from rental_manager.utils.theme import apply_theme_from_choice, load_theme_settings
+from rental_manager.utils.theme import ThemeManager
 
 
 def main() -> int:
@@ -52,9 +52,7 @@ def main() -> int:
     app.setApplicationName(config.app_name)
     app.setOrganizationName(config.organization_name)
     app.setOrganizationDomain(config.organization_domain)
-    theme_settings = load_theme_settings(get_config_path())
-    if not apply_theme_from_choice(app, theme_settings.theme):
-        logger.warning("Falha ao aplicar tema. Usando estilo padrão.")
+    theme_manager = ThemeManager(app, get_config_path())
 
     services = AppServices(
         connection=connection,
@@ -64,6 +62,7 @@ def main() -> int:
         inventory_service=InventoryService(connection),
         rental_service=RentalService(connection),
         payment_service=PaymentService(connection),
+        theme_manager=theme_manager,
     )
 
     window = MainWindow(services)
