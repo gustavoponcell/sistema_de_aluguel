@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from rental_manager.paths import get_config_path
 from rental_manager.ui.app_services import AppServices
@@ -107,8 +107,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         view_menu = menu_bar.addMenu("Exibir")
         theme_menu = view_menu.addMenu("Tema")
-        theme_group = QtWidgets.QActionGroup(self)
-        theme_group.setExclusive(True)
+        action_group_cls = getattr(QtGui, "QActionGroup", None)
+        theme_group = action_group_cls(self) if action_group_cls is not None else None
+        if theme_group is not None:
+            theme_group.setExclusive(True)
         theme_actions = {
             "light": theme_menu.addAction("Claro"),
             "dark": theme_menu.addAction("Escuro"),
@@ -117,18 +119,24 @@ class MainWindow(QtWidgets.QMainWindow):
         for key, action in theme_actions.items():
             action.setCheckable(True)
             action.setData(key)
-            theme_group.addAction(action)
+            if theme_group is not None:
+                theme_group.addAction(action)
+            else:
+                action.triggered.connect(
+                    lambda _checked=False, act=action: self._on_theme_selected(act)
+                )
 
         current_theme = self._theme_settings.theme
         if current_theme not in theme_actions:
             current_theme = "system"
         theme_actions[current_theme].setChecked(True)
-        theme_group.triggered.connect(self._on_theme_selected)
+        if theme_group is not None:
+            theme_group.triggered.connect(self._on_theme_selected)
 
         help_menu = menu_bar.addMenu("Ajuda")
         help_menu.addAction("Sobre")
 
-    def _on_theme_selected(self, action: QtWidgets.QAction) -> None:
+    def _on_theme_selected(self, action: QtGui.QAction) -> None:
         theme_choice = action.data()
         if theme_choice not in ("light", "dark", "system"):
             theme_choice = "system"
