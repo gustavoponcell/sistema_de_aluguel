@@ -194,6 +194,14 @@ O arquivo `run_app.bat` (na raiz do projeto) faz o seguinte:
 - `paid_at` (TEXT ISO)
 - `note` (TEXT)
 
+#### `documents`
+- `id` (PK)
+- `rental_id` (FK → rentals.id)
+- `doc_type` (TEXT: `contract` ou `receipt`)
+- `file_path` (TEXT)
+- `generated_at` (TEXT ISO)
+- `checksum` (TEXT SHA256)
+
 > Pagamentos ficam registrados em `payments` e o campo `rentals.paid_value` é derivado da soma dos pagamentos.
 
 ### 4.4 Índices
@@ -426,7 +434,7 @@ start_date <= D < end_date
 ## 7) Recibo/Contrato (PDF)
 
 **Onde gera**
-- Na tela **Agenda**, botão **“Gerar PDF”**.
+- Na tela **Agenda**, botões **“Gerar contrato”** e **“Gerar recibo”**.
 
 **O que contém**
 - Dados do locador (configurados em `config.py`).
@@ -438,6 +446,11 @@ start_date <= D < end_date
 **Onde é salvo**
 - `%APPDATA%\RentalManager\pdfs`.
 - Nome do arquivo: `aluguel_<ID>_<timestamp>_contract.pdf` ou `_receipt.pdf`.
+
+**Como reemitir / abrir o último**
+- Use os botões **“Abrir último contrato”** e **“Abrir último recibo”** no aluguel selecionado.
+- Se não houver documento gerado, os botões ficam desabilitados com dica de motivo.
+- Ao regerar, o arquivo é atualizado na pasta `pdfs` e o sistema registra o novo caminho e checksum.
 
 **Observações**
 - O PDF é **gerado com ReportLab**.

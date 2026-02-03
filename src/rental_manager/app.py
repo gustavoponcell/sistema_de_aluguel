@@ -17,7 +17,7 @@ from rental_manager.paths import (
     get_db_path,
     get_logs_dir,
 )
-from rental_manager.repositories import CustomerRepo, ProductRepo
+from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
 from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
@@ -58,6 +58,7 @@ def main() -> int:
         connection=connection,
         data_bus=DataEventBus(),
         customer_repo=CustomerRepo(connection),
+        document_repo=DocumentRepository(connection),
         product_repo=ProductRepo(connection),
         inventory_service=InventoryService(connection),
         rental_service=RentalService(connection),

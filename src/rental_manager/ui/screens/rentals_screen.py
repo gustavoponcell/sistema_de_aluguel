@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
 from dataclasses import dataclass
 from datetime import date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable, List, Optional
 
@@ -12,6 +14,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from rental_manager.domain.models import (
     Customer,
+    Document,
+    DocumentType,
     Payment,
     PaymentStatus,
     Rental,
@@ -1002,6 +1006,10 @@ class RentalsScreen(BaseScreen):
         super().__init__(services)
         self._rentals: List[Rental] = []
         self._customers_map: dict[int, str] = {}
+        self._latest_documents: dict[DocumentType, Optional[Document]] = {
+            DocumentType.CONTRACT: None,
+            DocumentType.RECEIPT: None,
+        }
         self._filter_timer = QtCore.QTimer(self)
         self._filter_timer.setSingleShot(True)
         self._filter_timer.setInterval(250)
@@ -1108,14 +1116,20 @@ class RentalsScreen(BaseScreen):
         self.cancel_button = QtWidgets.QPushButton("Cancelar")
         self.complete_button = QtWidgets.QPushButton("Concluir")
         self.payment_button = QtWidgets.QPushButton("Registrar pagamento")
-        self.pdf_button = QtWidgets.QPushButton("Gerar PDF")
+        self.generate_contract_button = QtWidgets.QPushButton("Gerar contrato")
+        self.generate_receipt_button = QtWidgets.QPushButton("Gerar recibo")
+        self.open_contract_button = QtWidgets.QPushButton("Abrir último contrato")
+        self.open_receipt_button = QtWidgets.QPushButton("Abrir último recibo")
         for button in (
             self.details_button,
             self.edit_button,
             self.cancel_button,
             self.complete_button,
             self.payment_button,
-            self.pdf_button,
+            self.generate_contract_button,
+            self.generate_receipt_button,
+            self.open_contract_button,
+            self.open_receipt_button,
         ):
             button.setMinimumHeight(40)
 
@@ -1124,14 +1138,28 @@ class RentalsScreen(BaseScreen):
         self.cancel_button.clicked.connect(self._on_cancel)
         self.complete_button.clicked.connect(self._on_complete)
         self.payment_button.clicked.connect(self._on_payment)
-        self.pdf_button.clicked.connect(self._on_pdf)
+        self.generate_contract_button.clicked.connect(
+            lambda: self._on_generate_document(DocumentType.CONTRACT)
+        )
+        self.generate_receipt_button.clicked.connect(
+            lambda: self._on_generate_document(DocumentType.RECEIPT)
+        )
+        self.open_contract_button.clicked.connect(
+            lambda: self._on_open_latest(DocumentType.CONTRACT)
+        )
+        self.open_receipt_button.clicked.connect(
+            lambda: self._on_open_latest(DocumentType.RECEIPT)
+        )
 
         actions_layout.addWidget(self.details_button)
         actions_layout.addWidget(self.edit_button)
         actions_layout.addWidget(self.cancel_button)
         actions_layout.addWidget(self.complete_button)
         actions_layout.addWidget(self.payment_button)
-        actions_layout.addWidget(self.pdf_button)
+        actions_layout.addWidget(self.generate_contract_button)
+        actions_layout.addWidget(self.generate_receipt_button)
+        actions_layout.addWidget(self.open_contract_button)
+        actions_layout.addWidget(self.open_receipt_button)
         actions_layout.addStretch()
         layout.addLayout(actions_layout)
 
@@ -1176,7 +1204,19 @@ class RentalsScreen(BaseScreen):
         self.cancel_button.setEnabled(enabled)
         self.complete_button.setEnabled(enabled)
         self.payment_button.setEnabled(enabled)
-        self.pdf_button.setEnabled(enabled)
+        self.generate_contract_button.setEnabled(enabled)
+        self.generate_receipt_button.setEnabled(enabled)
+        if not enabled:
+            self._set_open_button_state(
+                self.open_contract_button,
+                False,
+                "Selecione um aluguel para abrir o contrato.",
+            )
+            self._set_open_button_state(
+                self.open_receipt_button,
+                False,
+                "Selecione um aluguel para abrir o recibo.",
+            )
 
     def _on_filters_changed(self) -> None:
         self._filter_timer.start()
@@ -1304,8 +1344,11 @@ class RentalsScreen(BaseScreen):
         return self._rentals[row]
 
     def _on_selection_changed(self) -> None:
-        has_selection = self._get_selected_rental() is not None
+        rental = self._get_selected_rental()
+        has_selection = rental is not None
         self._set_actions_enabled(has_selection)
+        if rental and rental.id:
+            self._update_document_buttons(rental.id)
 
     def _on_view_details(self) -> None:
         rental = self._get_selected_rental()
@@ -1375,60 +1418,67 @@ class RentalsScreen(BaseScreen):
         self._services.data_bus.data_changed.emit()
         self._load_rentals()
 
-    def _on_pdf(self) -> None:
+    def _set_open_button_state(
+        self, button: QtWidgets.QPushButton, enabled: bool, tooltip: str
+    ) -> None:
+        button.setEnabled(enabled)
+        button.setToolTip(tooltip)
+
+    def _update_document_buttons(self, rental_id: int) -> None:
+        for doc_type in (DocumentType.CONTRACT, DocumentType.RECEIPT):
+            document = self._services.document_repo.get_latest(rental_id, doc_type)
+            self._latest_documents[doc_type] = document
+        self._apply_document_state(DocumentType.CONTRACT, self.open_contract_button)
+        self._apply_document_state(DocumentType.RECEIPT, self.open_receipt_button)
+
+    def _apply_document_state(
+        self, doc_type: DocumentType, button: QtWidgets.QPushButton
+    ) -> None:
+        document = self._latest_documents.get(doc_type)
+        label = "contrato" if doc_type == DocumentType.CONTRACT else "recibo"
+        if not document:
+            self._set_open_button_state(
+                button,
+                False,
+                f"Nenhum {label} gerado para este aluguel.",
+            )
+            return
+        path = Path(document.file_path)
+        if not path.exists():
+            self._set_open_button_state(
+                button,
+                False,
+                f"Arquivo do {label} não encontrado. Gere novamente.",
+            )
+            return
+        self._set_open_button_state(button, True, f"Abrir último {label} gerado.")
+
+    def _on_generate_document(self, doc_type: DocumentType) -> None:
         rental = self._get_selected_rental()
         if not rental or not rental.id:
             return
-        choice, ok = QtWidgets.QInputDialog.getItem(
-            self,
-            "Gerar PDF",
-            "Selecione o tipo de documento:",
-            ["Contrato", "Recibo"],
-            0,
-            False,
-        )
-        if not ok:
-            return
-        kind = "contract" if choice == "Contrato" else "receipt"
         try:
-            rental_data = rental_repo.get_rental_with_items(
-                rental.id,
-                connection=self._services.connection,
-            )
-            if not rental_data:
-                raise RuntimeError("Aluguel não encontrado.")
-            rental, items = rental_data
-            customer = self._services.customer_repo.get_by_id(rental.customer_id)
-            if not customer:
-                customer = Customer(
-                    id=None,
-                    name="Cliente não encontrado",
-                    phone=None,
-                    notes=None,
-                )
-            products = self._services.product_repo.list_all()
-            product_map = {product.id: product for product in products}
-            items_for_pdf = []
-            for item in items:
-                product = product_map.get(item.product_id)
-                items_for_pdf.append(
-                    SimpleNamespace(
-                        product_id=item.product_id,
-                        product_name=product.name if product else f"Produto {item.product_id}",
-                        qty=item.qty,
-                        unit_price=item.unit_price,
-                        line_total=item.line_total,
-                    )
-                )
+            rental_payload = self._build_pdf_payload(rental.id)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = (
-                get_pdfs_dir() / f"aluguel_{rental.id}_{timestamp}_{kind}.pdf"
+                get_pdfs_dir()
+                / f"aluguel_{rental.id}_{timestamp}_{doc_type.value}.pdf"
             )
             generate_rental_pdf(
-                (rental, items_for_pdf, customer),
+                rental_payload,
                 output_path,
-                kind=kind,
+                kind=doc_type.value,
             )
+            checksum = self._calculate_checksum(output_path)
+            generated_at = datetime.now().isoformat(timespec="seconds")
+            self._services.document_repo.upsert(
+                rental_id=rental.id,
+                doc_type=doc_type,
+                file_path=str(output_path),
+                generated_at=generated_at,
+                checksum=checksum,
+            )
+            self._update_document_buttons(rental.id)
         except Exception:
             _show_error(self, "Não foi possível gerar o PDF. Tente novamente.")
             return
@@ -1454,3 +1504,61 @@ class RentalsScreen(BaseScreen):
             QtGui.QDesktopServices.openUrl(
                 QtCore.QUrl.fromLocalFile(str(output_path.parent))
             )
+
+    def _on_open_latest(self, doc_type: DocumentType) -> None:
+        rental = self._get_selected_rental()
+        if not rental or not rental.id:
+            return
+        document = self._latest_documents.get(doc_type)
+        if not document:
+            return
+        path = Path(document.file_path)
+        if not path.exists():
+            _show_error(
+                self,
+                "Arquivo não encontrado. Gere o documento novamente para atualizar.",
+            )
+            self._update_document_buttons(rental.id)
+            return
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
+
+    def _build_pdf_payload(
+        self, rental_id: int
+    ) -> tuple[Rental, list[SimpleNamespace], Customer]:
+        rental_data = rental_repo.get_rental_with_items(
+            rental_id,
+            connection=self._services.connection,
+        )
+        if not rental_data:
+            raise RuntimeError("Aluguel não encontrado.")
+        rental, items = rental_data
+        customer = self._services.customer_repo.get_by_id(rental.customer_id)
+        if not customer:
+            customer = Customer(
+                id=None,
+                name="Cliente não encontrado",
+                phone=None,
+                notes=None,
+            )
+        products = self._services.product_repo.list_all()
+        product_map = {product.id: product for product in products}
+        items_for_pdf = []
+        for item in items:
+            product = product_map.get(item.product_id)
+            items_for_pdf.append(
+                SimpleNamespace(
+                    product_id=item.product_id,
+                    product_name=product.name if product else f"Produto {item.product_id}",
+                    qty=item.qty,
+                    unit_price=item.unit_price,
+                    line_total=item.line_total,
+                )
+            )
+        return rental, items_for_pdf, customer
+
+    def _calculate_checksum(self, path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8192), b""):
+                digest.update(chunk)
+        return digest.hexdigest()

@@ -20,6 +20,11 @@ class PaymentStatus(str, Enum):
     PAID = "paid"
 
 
+class DocumentType(str, Enum):
+    CONTRACT = "contract"
+    RECEIPT = "receipt"
+
+
 @dataclass(slots=True)
 class Payment:
     id: Optional[int]
@@ -78,3 +83,13 @@ class RentalItem:
     line_total: float
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+@dataclass(slots=True)
+class Document:
+    id: Optional[int]
+    rental_id: int
+    doc_type: DocumentType
+    file_path: str
+    generated_at: str
+    checksum: str

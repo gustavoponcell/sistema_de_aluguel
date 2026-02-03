@@ -7,6 +7,8 @@ from typing import Any, Dict
 
 from rental_manager.domain.models import (
     Customer,
+    Document,
+    DocumentType,
     Payment,
     PaymentStatus,
     Product,
@@ -148,3 +150,14 @@ def payment_to_record(payment: Payment) -> Dict[str, Any]:
         "paid_at": payment.paid_at,
         "note": payment.note,
     }
+
+
+def document_from_row(row: sqlite3.Row) -> Document:
+    return Document(
+        id=_row_value(row, "id"),
+        rental_id=row["rental_id"],
+        doc_type=DocumentType(row["doc_type"]),
+        file_path=row["file_path"],
+        generated_at=row["generated_at"],
+        checksum=row["checksum"],
+    )
