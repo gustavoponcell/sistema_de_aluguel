@@ -20,6 +20,7 @@ from rental_manager.paths import get_config_path, get_pdfs_dir
 from rental_manager.repositories import rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.utils.pdf_generator import generate_rental_pdf
 from rental_manager.utils.theme import load_theme_settings, resolve_theme_choice
 
@@ -646,15 +647,16 @@ class RentalEditDialog(QtWidgets.QDialog):
         return event_date, start_date, end_date
 
     def _sync_end_date_min(self, new_start_date: QtCore.QDate) -> None:
-        self.end_date_input.setMinimumDate(new_start_date)
-        if self.end_date_input.date() < new_start_date:
-            self.end_date_input.setDate(new_start_date)
+        minimum_end_date = new_start_date.addDays(1)
+        self.end_date_input.setMinimumDate(minimum_end_date)
+        if self.end_date_input.date() < minimum_end_date:
+            self.end_date_input.setDate(minimum_end_date)
 
     def _validate_dates(self) -> bool:
         _event_date, start_date, end_date = self._get_dates()
-        if start_date > end_date:
+        if start_date >= end_date:
             _show_warning(
-                self, "A data de término não pode ser anterior à data de início."
+                self, "A data de término deve ser posterior à data de início."
             )
             return False
         return True
@@ -712,17 +714,21 @@ class RentalEditDialog(QtWidgets.QDialog):
         except Exception:
             _show_error(self, "Não foi possível atualizar o aluguel. Tente novamente.")
             return
+        self._services.data_bus.data_changed.emit()
         self.accept()
 
 
-class RentalsScreen(QtWidgets.QWidget):
+class RentalsScreen(BaseScreen):
     """Screen for the rentals agenda."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._rentals: List[Rental] = []
         self._customers_map: dict[int, str] = {}
+        self._filter_timer = QtCore.QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(250)
+        self._filter_timer.timeout.connect(self.refresh)
         self._build_ui()
         self._load_rentals()
 
@@ -954,6 +960,9 @@ class RentalsScreen(QtWidgets.QWidget):
         self.pdf_button.setEnabled(enabled)
 
     def _on_filters_changed(self) -> None:
+        self._filter_timer.start()
+
+    def refresh(self) -> None:
         self._load_rentals()
 
     def _toggle_date_filter(self, checked: bool) -> None:
@@ -1106,6 +1115,7 @@ class RentalsScreen(QtWidgets.QWidget):
         except Exception:
             _show_error(self, "Não foi possível cancelar o aluguel. Tente novamente.")
             return
+        self._services.data_bus.data_changed.emit()
         self._load_rentals()
 
     def _on_complete(self) -> None:
@@ -1119,6 +1129,7 @@ class RentalsScreen(QtWidgets.QWidget):
         except Exception:
             _show_error(self, "Não foi possível concluir o aluguel. Tente novamente.")
             return
+        self._services.data_bus.data_changed.emit()
         self._load_rentals()
 
     def _on_payment(self) -> None:
@@ -1136,6 +1147,7 @@ class RentalsScreen(QtWidgets.QWidget):
         except Exception:
             _show_error(self, "Não foi possível registrar o pagamento. Tente novamente.")
             return
+        self._services.data_bus.data_changed.emit()
         self._load_rentals()
 
     def _on_pdf(self) -> None:

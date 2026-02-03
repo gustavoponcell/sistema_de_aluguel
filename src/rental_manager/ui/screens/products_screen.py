@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import Product
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 
 
 class ProductDialog(QtWidgets.QDialog):
@@ -109,13 +110,20 @@ class ProductDialog(QtWidgets.QDialog):
         }
 
 
-class ProductsScreen(QtWidgets.QWidget):
+class ProductsScreen(BaseScreen):
     """Screen for products/stock."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._products: List[Product] = []
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(250)
+        self._search_timer.timeout.connect(self.refresh)
+        self._filter_timer = QtCore.QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(250)
+        self._filter_timer.timeout.connect(self.refresh)
         self._build_ui()
         self._load_products()
 
@@ -132,6 +140,16 @@ class ProductsScreen(QtWidgets.QWidget):
 
         layout.addWidget(title)
         layout.addWidget(subtitle)
+
+        filter_layout = QtWidgets.QHBoxLayout()
+        filter_layout.addWidget(QtWidgets.QLabel("Data de referência:"))
+        self.reference_date_input = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        self.reference_date_input.setCalendarPopup(True)
+        self.reference_date_input.setDisplayFormat("dd/MM/yyyy")
+        self.reference_date_input.dateChanged.connect(self._on_reference_date_changed)
+        filter_layout.addWidget(self.reference_date_input)
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
 
         search_layout = QtWidgets.QHBoxLayout()
         search_label = QtWidgets.QLabel("Buscar:")
@@ -157,9 +175,9 @@ class ProductsScreen(QtWidgets.QWidget):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
-        self.table = QtWidgets.QTableWidget(0, 4)
+        self.table = QtWidgets.QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["Nome", "Categoria", "Quantidade", "Preço padrão"]
+            ["Nome", "Categoria", "Total", "Na rua", "Comigo", "Preço padrão"]
         )
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -171,10 +189,19 @@ class ProductsScreen(QtWidgets.QWidget):
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:
-        self._load_products(text)
+        self._pending_search = text
+        self._search_timer.start()
+
+    def _on_reference_date_changed(self) -> None:
+        self._filter_timer.start()
+
+    def refresh(self) -> None:
+        self._load_products(getattr(self, "_pending_search", self.search_input.text()))
 
     def _load_products(self, term: str = "") -> None:
         try:
@@ -193,8 +220,13 @@ class ProductsScreen(QtWidgets.QWidget):
         self._render_table(products)
 
     def _render_table(self, products: List[Product]) -> None:
+        reference_date = self.reference_date_input.date().toPython()
         self.table.setRowCount(len(products))
         for row, product in enumerate(products):
+            reserved_qty = self._services.inventory_service.get_reserved_qty_on_date(
+                product.id or 0, reference_date
+            )
+            available_qty = max(product.total_qty - reserved_qty, 0)
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(product.name))
             self.table.setItem(
                 row,
@@ -206,12 +238,14 @@ class ProductsScreen(QtWidgets.QWidget):
                 2,
                 QtWidgets.QTableWidgetItem(str(product.total_qty)),
             )
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(reserved_qty)))
+            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(available_qty)))
             price_text = "—"
             if product.unit_price is not None:
                 price_text = f"R$ {product.unit_price:,.2f}".replace(",", "X").replace(
                     ".", ","
                 ).replace("X", ".")
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(price_text))
+            self.table.setItem(row, 5, QtWidgets.QTableWidgetItem(price_text))
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
         self._on_selection_changed()
@@ -250,6 +284,7 @@ class ProductsScreen(QtWidgets.QWidget):
                 "Não foi possível salvar o produto. Verifique os dados e tente novamente.",
             )
             return
+        self._services.data_bus.data_changed.emit()
         self._load_products(self.search_input.text())
 
     def _on_edit(self) -> None:
@@ -282,6 +317,7 @@ class ProductsScreen(QtWidgets.QWidget):
                 "Atenção",
                 "O produto não foi encontrado para atualização.",
             )
+        self._services.data_bus.data_changed.emit()
         self._load_products(self.search_input.text())
 
     def _on_deactivate(self) -> None:
@@ -311,4 +347,5 @@ class ProductsScreen(QtWidgets.QWidget):
                 "Atenção",
                 "O produto já estava desativado ou não foi encontrado.",
             )
+        self._services.data_bus.data_changed.emit()
         self._load_products(self.search_input.text())

@@ -87,6 +87,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._build_menu()
         button_group.buttons()[0].setChecked(True)
         self._stack.setCurrentIndex(0)
+        self._stack.currentChanged.connect(self._on_screen_changed)
+
+    def _on_screen_changed(self, index: int) -> None:
+        screen = self._stack.widget(index)
+        refresh = getattr(screen, "refresh", None)
+        if callable(refresh):
+            refresh()
 
     def _apply_styles(self) -> None:
         self.setStyleSheet(

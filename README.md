@@ -47,6 +47,15 @@ python -m rental_manager.app
 
 O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`.
 
+## Regra de ocupação de estoque por data
+
+- A disponibilidade é calculada pelo intervalo **[início, fim)** (data de fim é exclusiva).
+- A data de término deve ser **posterior** à data de início.
+- Aluguéis com status **confirmado** ou **concluído** bloqueiam estoque.
+- Aluguéis **rascunho** ou **cancelado** não bloqueiam estoque.
+
+> Dica: para um aluguel de um único dia, informe a devolução no dia seguinte.
+
 ## Como mudar o tema
 
 Abra o menu **Exibir > Tema** e escolha entre **Claro**, **Escuro** ou **Sistema**.
