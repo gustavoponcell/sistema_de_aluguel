@@ -3,6 +3,16 @@ $ErrorActionPreference = "Stop"
 $projectRoot = $PSScriptRoot
 Set-Location $projectRoot
 
+$python = Join-Path $PSScriptRoot ".venv\\Scripts\\python.exe"
+if (-not (Test-Path $python)) {
+  & python -m venv .venv
+}
+if (-not (Test-Path $python)) {
+  throw "Python do venv não encontrado em $python. Verifique a criação da virtualenv."
+}
+
+& $python -m pip install -r requirements.txt
+
 $iconPath = Join-Path $projectRoot "assets\\icon.ico"
 $versionFile = Join-Path $projectRoot "tools\\windows_version_info.txt"
 $appVersionFile = Join-Path $projectRoot "src\\rental_manager\\version.py"
@@ -44,7 +54,7 @@ $versionInfo = $versionInfo -replace "StringStruct\('InternalName', '[^']*'\)", 
 $versionInfo = $versionInfo -replace "StringStruct\('OriginalFilename', '[^']*'\)", "StringStruct('OriginalFilename', 'GestaoInteligente.exe')"
 Set-Content -Path $versionFile -Value $versionInfo -Encoding UTF8
 
-pyinstaller `
+& $python -m PyInstaller `
   --noconsole `
   --name GestaoInteligente `
   --icon assets/icon.ico `
@@ -54,3 +64,8 @@ pyinstaller `
   --clean `
   --noconfirm `
   $entrypoint
+
+$builtExe = Join-Path $projectRoot "dist\\GestaoInteligente\\GestaoInteligente.exe"
+if (-not (Test-Path $builtExe)) {
+  throw "Build concluído, mas o executável não foi encontrado em $builtExe."
+}
