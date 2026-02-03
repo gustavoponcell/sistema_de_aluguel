@@ -13,6 +13,7 @@ from rental_manager.ui.screens import (
     ProductsScreen,
     RentalsScreen,
 )
+from rental_manager.ui.strings import APP_NAME
 from rental_manager.utils.theme import ThemeSettings
 
 
@@ -24,7 +25,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._services = services
         self._stack = QtWidgets.QStackedWidget()
         self._theme_manager = services.theme_manager
-        self.setWindowTitle("RentalManager")
+        self.setWindowTitle(APP_NAME)
         self.resize(1024, 640)
         self._build_ui()
 
@@ -40,7 +41,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sidebar_layout.setContentsMargins(16, 16, 16, 16)
         sidebar_layout.setSpacing(12)
 
-        title = QtWidgets.QLabel("RentalManager")
+        title = QtWidgets.QLabel(APP_NAME)
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         title.setAlignment(QtCore.Qt.AlignLeft)
 
@@ -52,7 +53,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._finance_screen = FinanceScreen(self._services)
         self._rentals_screen = RentalsScreen(self._services)
         screens = [
-            ("Novo Aluguel", NewRentalScreen(self._services)),
+            ("Novo Pedido", NewRentalScreen(self._services)),
             ("Agenda", self._rentals_screen),
             ("Estoque", ProductsScreen(self._services)),
             ("Clientes", CustomersScreen(self._services)),

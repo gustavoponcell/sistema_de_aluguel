@@ -12,6 +12,7 @@ from rental_manager.domain.models import (
     Payment,
     PaymentStatus,
     Product,
+    ProductKind,
     Rental,
     RentalItem,
     RentalStatus,
@@ -23,12 +24,18 @@ def _row_value(row: sqlite3.Row, key: str) -> Any:
 
 
 def product_from_row(row: sqlite3.Row) -> Product:
+    raw_kind = _row_value(row, "kind") or ProductKind.PRODUCT.value
+    try:
+        kind = ProductKind(raw_kind)
+    except ValueError:
+        kind = ProductKind.PRODUCT
     return Product(
         id=_row_value(row, "id"),
         name=row["name"],
         category=_row_value(row, "category"),
         total_qty=row["total_qty"],
         unit_price=_row_value(row, "unit_price"),
+        kind=kind,
         active=bool(row["active"]),
         created_at=_row_value(row, "created_at"),
         updated_at=_row_value(row, "updated_at"),
@@ -42,6 +49,7 @@ def product_to_record(product: Product) -> Dict[str, Any]:
         "category": product.category,
         "total_qty": product.total_qty,
         "unit_price": product.unit_price,
+        "kind": product.kind.value if isinstance(product.kind, ProductKind) else product.kind,
         "active": int(product.active),
         "created_at": product.created_at,
         "updated_at": product.updated_at,

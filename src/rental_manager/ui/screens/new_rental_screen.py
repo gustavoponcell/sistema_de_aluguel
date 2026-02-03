@@ -13,6 +13,15 @@ from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.screens.customers_screen import CustomerDialog
+from rental_manager.ui.strings import (
+    TERM_ITEM,
+    TERM_ORDER,
+    TITLE_CONFIRMATION,
+    TITLE_ERROR,
+    TITLE_SUCCESS,
+    TITLE_WARNING,
+    product_kind_label,
+)
 
 
 @dataclass
@@ -52,11 +61,11 @@ class NewRentalScreen(BaseScreen):
         layout.setSpacing(18)
         layout.setContentsMargins(24, 24, 24, 24)
 
-        title = QtWidgets.QLabel("Novo Aluguel")
+        title = QtWidgets.QLabel(f"Novo {TERM_ORDER}")
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Inicie um novo aluguel com dados do cliente, datas e itens."
+            "Inicie um novo pedido com dados do cliente, datas e itens."
         )
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #555; font-size: 14px;")
@@ -117,7 +126,7 @@ class NewRentalScreen(BaseScreen):
 
         layout.addLayout(form)
 
-        items_group = QtWidgets.QGroupBox("Itens do aluguel")
+        items_group = QtWidgets.QGroupBox("Itens do pedido")
         items_layout = QtWidgets.QVBoxLayout(items_group)
 
         item_form = QtWidgets.QGridLayout()
@@ -136,7 +145,7 @@ class NewRentalScreen(BaseScreen):
         self.add_item_button.setMinimumHeight(40)
         self.add_item_button.clicked.connect(self._on_add_item)
 
-        item_form.addWidget(QtWidgets.QLabel("Produto"), 0, 0)
+        item_form.addWidget(QtWidgets.QLabel(TERM_ITEM), 0, 0)
         item_form.addWidget(QtWidgets.QLabel("Quantidade"), 0, 1)
         item_form.addWidget(QtWidgets.QLabel("Preço unitário"), 0, 2)
         item_form.addWidget(self.product_combo, 1, 0)
@@ -152,7 +161,7 @@ class NewRentalScreen(BaseScreen):
 
         self.items_table = QtWidgets.QTableWidget(0, 5)
         self.items_table.setHorizontalHeaderLabels(
-            ["Produto", "Quantidade", "Preço unitário", "Total", "Ações"]
+            [TERM_ITEM, "Quantidade", "Preço unitário", "Total", "Ações"]
         )
         self.items_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.items_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
@@ -178,7 +187,7 @@ class NewRentalScreen(BaseScreen):
 
         button_layout = QtWidgets.QHBoxLayout()
         self.save_draft_button = QtWidgets.QPushButton("Salvar como rascunho")
-        self.confirm_button = QtWidgets.QPushButton("Confirmar aluguel")
+        self.confirm_button = QtWidgets.QPushButton("Confirmar pedido")
         self.save_draft_button.setMinimumHeight(44)
         self.confirm_button.setMinimumHeight(44)
         self.save_draft_button.clicked.connect(self._on_save_draft)
@@ -216,18 +225,18 @@ class NewRentalScreen(BaseScreen):
         self._building_ui = False
 
     def _show_warning(self, message: str) -> None:
-        QtWidgets.QMessageBox.warning(self, "Atenção", message)
+        QtWidgets.QMessageBox.warning(self, TITLE_WARNING, message)
 
     def _show_error(self, message: str) -> None:
-        QtWidgets.QMessageBox.critical(self, "Erro", message)
+        QtWidgets.QMessageBox.critical(self, TITLE_ERROR, message)
 
     def _show_success(self, message: str) -> None:
-        QtWidgets.QMessageBox.information(self, "Sucesso", message)
+        QtWidgets.QMessageBox.information(self, TITLE_SUCCESS, message)
 
     def _confirm_action(self, message: str) -> bool:
         response = QtWidgets.QMessageBox.question(
             self,
-            "Confirmação",
+            TITLE_CONFIRMATION,
             message,
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
         )
@@ -269,14 +278,14 @@ class NewRentalScreen(BaseScreen):
         try:
             products = self._services.product_repo.list_active()
         except Exception:
-            self._show_error("Não foi possível carregar os produtos.")
+            self._show_error("Não foi possível carregar os itens.")
             return
         self._products = products
         self.product_combo.blockSignals(True)
         self.product_combo.clear()
-        self.product_combo.addItem("Selecione um produto", None)
+        self.product_combo.addItem("Selecione um item", None)
         for product in products:
-            self.product_combo.addItem(product.name, product.id)
+            self.product_combo.addItem(self._format_product_label(product), product.id)
         self.product_combo.blockSignals(False)
         self._apply_selected_product_price()
 
@@ -298,6 +307,10 @@ class NewRentalScreen(BaseScreen):
             if product.id == product_id:
                 return product
         return None
+
+    def _format_product_label(self, product: Product) -> str:
+        kind_label = product_kind_label(product.kind)
+        return f"{product.name} • {kind_label}"
 
     def _get_selected_customer_id(self) -> Optional[int]:
         customer_id = self.customer_combo.currentData()
@@ -331,7 +344,7 @@ class NewRentalScreen(BaseScreen):
             return
         product = self._get_selected_product()
         if not product or product.id is None:
-            self._show_warning("Selecione um produto para adicionar.")
+            self._show_warning("Selecione um item para adicionar.")
             return
         qty = int(self.qty_input.value())
         unit_price = float(self.unit_price_input.value())
@@ -479,12 +492,12 @@ class NewRentalScreen(BaseScreen):
 
     def _validate_form(self) -> bool:
         if not self._get_selected_customer_id():
-            self._show_warning("Selecione um cliente para o aluguel.")
+            self._show_warning("Selecione um cliente para o pedido.")
             return False
         if not self._validate_dates():
             return False
         if not self._items:
-            self._show_warning("Adicione ao menos um item ao aluguel.")
+            self._show_warning("Adicione ao menos um item ao pedido.")
             return False
         return True
 
@@ -531,7 +544,7 @@ class NewRentalScreen(BaseScreen):
         items_payload = self._build_items_payload()
         total_value = sum(item.line_total for item in self._items)
         if total_value <= 0 and not self._confirm_action(
-            "O total do aluguel está R$ 0,00. Deseja continuar mesmo assim?"
+            "O total do pedido está R$ 0,00. Deseja continuar mesmo assim?"
         ):
             return False
         try:
@@ -551,7 +564,7 @@ class NewRentalScreen(BaseScreen):
             return False
         except Exception:
             self._show_error(
-                "Não foi possível salvar o aluguel. Verifique os dados e tente novamente."
+                "Não foi possível salvar o pedido. Verifique os dados e tente novamente."
             )
             return False
         self._services.data_bus.data_changed.emit()
@@ -560,13 +573,13 @@ class NewRentalScreen(BaseScreen):
     def _on_save_draft(self) -> None:
         if not self._save_rental(confirm=False):
             return
-        self._show_success("Aluguel salvo como rascunho.")
+        self._show_success("Pedido salvo como rascunho.")
         self._clear_form()
 
     def _on_confirm_rental(self) -> None:
         if not self._save_rental(confirm=True):
             return
-        self._show_success("Aluguel confirmado com sucesso.")
+        self._show_success("Pedido confirmado com sucesso.")
         self._clear_form()
 
     def _clear_form(self) -> None:

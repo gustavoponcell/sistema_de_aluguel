@@ -1,6 +1,6 @@
 # RentalManager
 
-Aplicativo desktop para gerenciamento de aluguéis, focado em uso offline no Windows.
+Aplicativo desktop para gerenciamento de produtos, serviços e pedidos de locação, focado em uso offline no Windows.
 
 📘 **Documentação completa:** [DOCUMENTATION.md](DOCUMENTATION.md)
 
@@ -56,7 +56,17 @@ O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`
 - Aluguéis com status **confirmado** ou **concluído** bloqueiam estoque.
 - Aluguéis **rascunho** ou **cancelado** não bloqueiam estoque.
 
-> Dica: para um aluguel de um único dia, informe a devolução no dia seguinte.
+> Dica: para um pedido de um único dia, informe a devolução no dia seguinte.
+
+## Teste manual básico
+
+1) Cadastrar um serviço no Estoque:
+   - Selecione **Tipo: Serviço** e verifique que a quantidade padrão é aplicada automaticamente.
+2) Criar um pedido com o serviço:
+   - Confirme que o pedido não bloqueia por falta de estoque.
+3) Financeiro:
+   - Verifique que o **Resumo** mostra a tabela de **Pendências por mês**.
+   - Abra a aba **Gráficos** e confirme que os gráficos estão em cards grandes com rolagem vertical.
 
 ## Como mudar o tema
 
@@ -136,5 +146,5 @@ Lá ficam o banco (`rental_manager.db`), PDFs (`pdfs\`), backups (`backups\`) e 
 - Abrir o executável e confirmar que não aparece console.
 - Confirmar criação do banco em `%APPDATA%\RentalManager\rental_manager.db`.
 - Confirmar criação de logs em `%APPDATA%\RentalManager\logs\`.
-- Criar um aluguel de teste e gerar PDF em `%APPDATA%\RentalManager\pdfs\`.
+- Criar um pedido de teste e gerar PDF em `%APPDATA%\RentalManager\pdfs\`.
 - Executar backup e verificar arquivo em `%APPDATA%\RentalManager\backups\`.

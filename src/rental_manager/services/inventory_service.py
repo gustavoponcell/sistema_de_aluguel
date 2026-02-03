@@ -8,7 +8,7 @@ from typing import Iterable, Optional
 
 from dateutil import parser
 
-from rental_manager.domain.models import RentalStatus
+from rental_manager.domain.models import ProductKind, RentalStatus, SERVICE_DEFAULT_QTY
 from rental_manager.logging_config import get_logger
 
 
@@ -78,15 +78,18 @@ class InventoryService:
     ) -> int:
         try:
             product_row = self._connection.execute(
-                "SELECT total_qty FROM products WHERE id = ?",
+                "SELECT total_qty, kind FROM products WHERE id = ?",
                 (product_id,),
             ).fetchone()
         except Exception:
             self._logger.exception("Failed to fetch product for id=%s", product_id)
             raise
         if not product_row:
-            raise ValueError(f"Produto {product_id} não encontrado.")
+            raise ValueError(f"Item {product_id} não encontrado.")
         total_qty = int(product_row["total_qty"])
+        kind = product_row["kind"] if "kind" in product_row.keys() else None
+        if kind == ProductKind.SERVICE.value:
+            total_qty = max(total_qty, SERVICE_DEFAULT_QTY)
         reserved_qty = self.get_reserved_qty(
             product_id,
             start_date,
@@ -137,15 +140,18 @@ class InventoryService:
     ) -> int:
         try:
             product_row = self._connection.execute(
-                "SELECT total_qty FROM products WHERE id = ?",
+                "SELECT total_qty, kind FROM products WHERE id = ?",
                 (product_id,),
             ).fetchone()
         except Exception:
             self._logger.exception("Failed to fetch product for id=%s", product_id)
             raise
         if not product_row:
-            raise ValueError(f"Produto {product_id} não encontrado.")
+            raise ValueError(f"Item {product_id} não encontrado.")
         total_qty = int(product_row["total_qty"])
+        kind = product_row["kind"] if "kind" in product_row.keys() else None
+        if kind == ProductKind.SERVICE.value:
+            total_qty = max(total_qty, SERVICE_DEFAULT_QTY)
         reserved_qty = self.on_loan(
             product_id,
             reference_date,
@@ -201,7 +207,9 @@ class InventoryService:
         start = date.fromisoformat(_to_iso_date(start_date))
         end = date.fromisoformat(_to_iso_date(end_date))
         if end <= start:
-            raise ValueError("A data de término deve ser posterior à data de início.")
+            raise ValueError(
+                "Não foi possível salvar: a data de término deve ser posterior à data de início."
+            )
         aggregated_items = self._aggregate_items(items)
         product_details = self._load_product_details(
             [product_id for product_id, _ in aggregated_items]
@@ -211,7 +219,9 @@ class InventoryService:
             for product_id, qty in aggregated_items:
                 product = product_details.get(product_id)
                 if not product:
-                    raise ValueError(f"Produto {product_id} não encontrado.")
+                    raise ValueError(f"Item {product_id} não encontrado.")
+                if product["kind"] == ProductKind.SERVICE.value:
+                    continue
                 total_qty = product["total_qty"]
                 reserved_qty = self.on_loan(
                     product_id,
@@ -222,7 +232,7 @@ class InventoryService:
                 if qty > available_qty:
                     product_label = product["name"] or f"ID {product_id}"
                     raise ValueError(
-                        "Estoque insuficiente para {product} no dia {day}. "
+                        "Estoque insuficiente para {product} na data {day}. "
                         "Disponível {available}, solicitado {requested}.".format(
                             product=product_label,
                             day=current_date.strftime("%d/%m/%Y"),
@@ -247,13 +257,21 @@ class InventoryService:
         placeholders = ", ".join(["?"] * len(ids))
         try:
             rows = self._connection.execute(
-                f"SELECT id, name, total_qty FROM products WHERE id IN ({placeholders})",
+                f"""
+                SELECT id, name, total_qty, kind
+                FROM products
+                WHERE id IN ({placeholders})
+                """,
                 ids,
             ).fetchall()
         except Exception:
             self._logger.exception("Failed to load products for availability check")
             raise
         return {
-            int(row["id"]): {"name": row["name"], "total_qty": int(row["total_qty"])}
+            int(row["id"]): {
+                "name": row["name"],
+                "total_qty": int(row["total_qty"]),
+                "kind": row["kind"] if "kind" in row.keys() else ProductKind.PRODUCT.value,
+            }
             for row in rows
         }

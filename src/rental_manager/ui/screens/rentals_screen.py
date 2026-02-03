@@ -20,6 +20,7 @@ from rental_manager.domain.models import (
     DocumentType,
     Payment,
     PaymentStatus,
+    Product,
     Rental,
     RentalItem,
     RentalStatus,
@@ -32,6 +33,16 @@ from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.utils.pdf_generator import generate_rental_pdf
 from rental_manager.ui.widgets import InfoBanner
+from rental_manager.ui.strings import (
+    TERM_ITEM,
+    TERM_ORDER_LOWER,
+    TERM_ORDER_PLURAL_LOWER,
+    TITLE_CONFIRMATION,
+    TITLE_ERROR,
+    TITLE_SUCCESS,
+    TITLE_WARNING,
+    product_kind_label,
+)
 
 
 def _format_currency(value: float) -> str:
@@ -83,21 +94,21 @@ def _payment_label(status: PaymentStatus) -> str:
 
 
 def _show_warning(parent: QtWidgets.QWidget, message: str) -> None:
-    QtWidgets.QMessageBox.warning(parent, "Atenção", message)
+    QtWidgets.QMessageBox.warning(parent, TITLE_WARNING, message)
 
 
 def _show_error(parent: QtWidgets.QWidget, message: str) -> None:
-    QtWidgets.QMessageBox.critical(parent, "Erro", message)
+    QtWidgets.QMessageBox.critical(parent, TITLE_ERROR, message)
 
 
 def _show_success(parent: QtWidgets.QWidget, message: str) -> None:
-    QtWidgets.QMessageBox.information(parent, "Sucesso", message)
+    QtWidgets.QMessageBox.information(parent, TITLE_SUCCESS, message)
 
 
 def _confirm_action(parent: QtWidgets.QWidget, message: str) -> bool:
     response = QtWidgets.QMessageBox.question(
         parent,
-        "Confirmação",
+        TITLE_CONFIRMATION,
         message,
         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
     )
@@ -216,7 +227,7 @@ class RentalsLoadTask(QtCore.QRunnable):
         except Exception:
             logger.exception("Erro ao carregar dados da agenda.")
             self.signals.failed.emit(
-                (self.request_id, "Não foi possível carregar a agenda de aluguéis.")
+                (self.request_id, "Não foi possível carregar a agenda de pedidos.")
             )
         finally:
             if connection is not None:
@@ -232,7 +243,7 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         self._rental_id = rental_id
         self._rental: Optional[Rental] = None
         self._items: List[RentalItem] = []
-        self.setWindowTitle("Detalhes do aluguel")
+        self.setWindowTitle("Detalhes do pedido")
         self.setModal(True)
         self._load_data()
         self._build_ui()
@@ -254,7 +265,7 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         layout.setContentsMargins(24, 24, 24, 24)
         if not self._rental:
             layout.addWidget(
-                QtWidgets.QLabel("Aluguel não encontrado para exibir os detalhes.")
+                QtWidgets.QLabel("Pedido não encontrado para exibir os detalhes.")
             )
             close_button = QtWidgets.QPushButton("Fechar")
             close_button.clicked.connect(self.reject)
@@ -269,7 +280,7 @@ class RentalDetailsDialog(QtWidgets.QDialog):
             customer = None
             product_map = {}
 
-        info_group = QtWidgets.QGroupBox("Dados do aluguel")
+        info_group = QtWidgets.QGroupBox("Dados do pedido")
         info_layout = QtWidgets.QFormLayout(info_group)
 
         info_layout.addRow("Cliente:", QtWidgets.QLabel(customer.name if customer else "—"))
@@ -305,7 +316,7 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         items_layout = QtWidgets.QVBoxLayout(items_group)
         items_table = QtWidgets.QTableWidget(0, 4)
         items_table.setHorizontalHeaderLabels(
-            ["Produto", "Quantidade", "Preço unitário", "Total"]
+            [TERM_ITEM, "Quantidade", "Preço unitário", "Total"]
         )
         items_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         items_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -621,7 +632,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         self._customers: List[object] = []
         self._products: List[object] = []
         self._editing_index: Optional[int] = None
-        self.setWindowTitle("Editar aluguel")
+        self.setWindowTitle("Editar pedido")
         self.setModal(True)
         self._load_rental()
         self._build_ui()
@@ -661,7 +672,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
 
         if not self._rental:
-            layout.addWidget(QtWidgets.QLabel("Aluguel não encontrado para edição."))
+            layout.addWidget(QtWidgets.QLabel("Pedido não encontrado para edição."))
             close_button = QtWidgets.QPushButton("Fechar")
             close_button.clicked.connect(self.reject)
             layout.addWidget(close_button)
@@ -717,7 +728,7 @@ class RentalEditDialog(QtWidgets.QDialog):
 
         layout.addLayout(form)
 
-        items_group = QtWidgets.QGroupBox("Itens do aluguel")
+        items_group = QtWidgets.QGroupBox("Itens do pedido")
         items_layout = QtWidgets.QVBoxLayout(items_group)
 
         item_form = QtWidgets.QGridLayout()
@@ -734,7 +745,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.add_item_button.setMinimumHeight(40)
         self.add_item_button.clicked.connect(self._on_add_item)
 
-        item_form.addWidget(QtWidgets.QLabel("Produto"), 0, 0)
+        item_form.addWidget(QtWidgets.QLabel(TERM_ITEM), 0, 0)
         item_form.addWidget(QtWidgets.QLabel("Quantidade"), 0, 1)
         item_form.addWidget(QtWidgets.QLabel("Preço unitário"), 0, 2)
         item_form.addWidget(self.product_combo, 1, 0)
@@ -750,7 +761,7 @@ class RentalEditDialog(QtWidgets.QDialog):
 
         self.items_table = QtWidgets.QTableWidget(0, 5)
         self.items_table.setHorizontalHeaderLabels(
-            ["Produto", "Quantidade", "Preço unitário", "Total", "Ações"]
+            [TERM_ITEM, "Quantidade", "Preço unitário", "Total", "Ações"]
         )
         self.items_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.items_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
@@ -840,13 +851,13 @@ class RentalEditDialog(QtWidgets.QDialog):
         try:
             self._products = self._services.product_repo.list_all()
         except Exception:
-            _show_error(self, "Não foi possível carregar os produtos.")
+            _show_error(self, "Não foi possível carregar os itens.")
             return
         self.product_combo.blockSignals(True)
         self.product_combo.clear()
-        self.product_combo.addItem("Selecione um produto", None)
+        self.product_combo.addItem("Selecione um item", None)
         for product in self._products:
-            self.product_combo.addItem(product.name, product.id)
+            self.product_combo.addItem(self._format_product_label(product), product.id)
         self.product_combo.blockSignals(False)
         self._apply_selected_product_price()
 
@@ -881,7 +892,7 @@ class RentalEditDialog(QtWidgets.QDialog):
             return
         self.unit_price_input.setValue(float(product.unit_price))
 
-    def _get_selected_product(self) -> Optional[object]:
+    def _get_selected_product(self) -> Optional[Product]:
         product_id = self.product_combo.currentData()
         if not product_id:
             return None
@@ -890,6 +901,10 @@ class RentalEditDialog(QtWidgets.QDialog):
                 return product
         return None
 
+    def _format_product_label(self, product: Product) -> str:
+        kind_label = product_kind_label(product.kind)
+        return f"{product.name} • {kind_label}"
+
     def _get_selected_customer_id(self) -> Optional[int]:
         customer_id = self.customer_combo.currentData()
         return int(customer_id) if customer_id else None
@@ -897,7 +912,7 @@ class RentalEditDialog(QtWidgets.QDialog):
     def _on_add_item(self) -> None:
         product = self._get_selected_product()
         if not product or product.id is None:
-            _show_warning(self, "Selecione um produto para adicionar.")
+            _show_warning(self, "Selecione um item para adicionar.")
             return
         if not self._validate_dates():
             return
@@ -1053,12 +1068,12 @@ class RentalEditDialog(QtWidgets.QDialog):
 
     def _validate_form(self) -> bool:
         if not self._get_selected_customer_id():
-            _show_warning(self, "Selecione um cliente para o aluguel.")
+            _show_warning(self, "Selecione um cliente para o pedido.")
             return False
         if not self._validate_dates():
             return False
         if not self._items:
-            _show_warning(self, "Adicione ao menos um item ao aluguel.")
+            _show_warning(self, "Adicione ao menos um item ao pedido.")
             return False
         return True
 
@@ -1103,7 +1118,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         items_payload = self._build_items_payload()
         total_value = sum(item.line_total for item in self._items)
         if total_value <= 0 and not _confirm_action(
-            self, "O total do aluguel está R$ 0,00. Deseja continuar mesmo assim?"
+            self, "O total do pedido está R$ 0,00. Deseja continuar mesmo assim?"
         ):
             return
         try:
@@ -1122,7 +1137,7 @@ class RentalEditDialog(QtWidgets.QDialog):
             _show_warning(self, str(exc))
             return
         except Exception:
-            _show_error(self, "Não foi possível atualizar o aluguel. Tente novamente.")
+            _show_error(self, "Não foi possível atualizar o pedido. Tente novamente.")
             return
         self._services.data_bus.data_changed.emit()
         self.accept()
@@ -1167,7 +1182,7 @@ class RentalsScreen(BaseScreen):
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Consulte os aluguéis agendados, filtre por datas, status e pagamentos."
+            "Consulte os pedidos agendados, filtre por datas, status e pagamentos."
         )
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #555; font-size: 14px;")
@@ -1177,9 +1192,9 @@ class RentalsScreen(BaseScreen):
 
         self.today_banner = InfoBanner(
             self._services.theme_manager,
-            "Aluguéis de hoje",
-            "Nenhum aluguel previsto para hoje.",
-            "Assim que houver um aluguel, ele aparece aqui.",
+            "Pedidos de hoje",
+            "Nenhum pedido previsto para hoje.",
+            "Assim que houver um pedido, ele aparece aqui.",
         )
         layout.addWidget(self.today_banner)
 
@@ -1365,12 +1380,12 @@ class RentalsScreen(BaseScreen):
             self._set_open_button_state(
                 self.open_contract_button,
                 False,
-                "Selecione um aluguel para abrir o contrato.",
+                "Selecione um pedido para abrir o contrato.",
             )
             self._set_open_button_state(
                 self.open_receipt_button,
                 False,
-                "Selecione um aluguel para abrir o recibo.",
+                "Selecione um pedido para abrir o recibo.",
             )
 
     def _on_filters_changed(self) -> None:
@@ -1490,10 +1505,10 @@ class RentalsScreen(BaseScreen):
     def _render_today_summary(self, rentals_today: List[Rental]) -> None:
         count = len(rentals_today)
         if count == 0:
-            self.today_banner.set_subtitle("Nenhum aluguel previsto para hoje.")
-            self.today_banner.set_content("Assim que houver um aluguel, ele aparece aqui.")
+            self.today_banner.set_subtitle("Nenhum pedido previsto para hoje.")
+            self.today_banner.set_content("Assim que houver um pedido, ele aparece aqui.")
             return
-        label = "aluguel" if count == 1 else "aluguéis"
+        label = TERM_ORDER_LOWER if count == 1 else TERM_ORDER_PLURAL_LOWER
         self.today_banner.set_subtitle(f"{count} {label} para hoje.")
         items = []
         for rental in rentals_today[:5]:
@@ -1580,13 +1595,13 @@ class RentalsScreen(BaseScreen):
         if not rental or not rental.id:
             return
         if not _confirm_action(
-            self, "Tem certeza que deseja cancelar este aluguel?"
+            self, "Tem certeza que deseja cancelar este pedido?"
         ):
             return
         try:
             self._services.rental_service.cancel_rental(rental.id)
         except Exception:
-            _show_error(self, "Não foi possível cancelar o aluguel. Tente novamente.")
+            _show_error(self, "Não foi possível cancelar o pedido. Tente novamente.")
             return
         self._services.data_bus.data_changed.emit()
         self._load_rentals()
@@ -1595,12 +1610,12 @@ class RentalsScreen(BaseScreen):
         rental = self._get_selected_rental()
         if not rental or not rental.id:
             return
-        if not _confirm_action(self, "Confirmar conclusão deste aluguel?"):
+        if not _confirm_action(self, "Confirmar conclusão deste pedido?"):
             return
         try:
             self._services.rental_service.complete_rental(rental.id)
         except Exception:
-            _show_error(self, "Não foi possível concluir o aluguel. Tente novamente.")
+            _show_error(self, "Não foi possível concluir o pedido. Tente novamente.")
             return
         self._services.data_bus.data_changed.emit()
         self._load_rentals()
@@ -1649,7 +1664,7 @@ class RentalsScreen(BaseScreen):
             self._set_open_button_state(
                 button,
                 False,
-                f"Nenhum {label} gerado para este aluguel.",
+                f"Nenhum {label} gerado para este pedido.",
             )
             return
         path = Path(document.file_path)
@@ -1671,7 +1686,7 @@ class RentalsScreen(BaseScreen):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = (
                 get_pdfs_dir()
-                / f"aluguel_{rental.id}_{timestamp}_{doc_type.value}.pdf"
+                / f"pedido_{rental.id}_{timestamp}_{doc_type.value}.pdf"
             )
             generate_rental_pdf(
                 rental_payload,
@@ -1739,7 +1754,7 @@ class RentalsScreen(BaseScreen):
             connection=self._services.connection,
         )
         if not rental_data:
-            raise RuntimeError("Aluguel não encontrado.")
+            raise RuntimeError("Pedido não encontrado.")
         rental, items = rental_data
         customer = self._services.customer_repo.get_by_id(rental.customer_id)
         if not customer:
@@ -1757,7 +1772,7 @@ class RentalsScreen(BaseScreen):
             items_for_pdf.append(
                 SimpleNamespace(
                     product_id=item.product_id,
-                    product_name=product.name if product else f"Produto {item.product_id}",
+                    product_name=product.name if product else f"Item {item.product_id}",
                     qty=item.qty,
                     unit_price=item.unit_price,
                     line_total=item.line_total,

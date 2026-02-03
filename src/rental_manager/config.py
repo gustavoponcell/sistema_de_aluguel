@@ -29,7 +29,7 @@ class PdfIssuerInfo:
 
 
 PDF_ISSUER = PdfIssuerInfo(
-    name="Responsável pelo aluguel",
+    name="Responsável pelo pedido",
     phone="(11) 99999-9999",
     document="CPF 000.000.000-00",
     address="Rua Exemplo, 123 - Centro",

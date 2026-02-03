@@ -25,6 +25,14 @@ class DocumentType(str, Enum):
     RECEIPT = "receipt"
 
 
+class ProductKind(str, Enum):
+    PRODUCT = "product"
+    SERVICE = "service"
+
+
+SERVICE_DEFAULT_QTY = 9999
+
+
 @dataclass(slots=True)
 class Payment:
     id: Optional[int]
@@ -42,6 +50,7 @@ class Product:
     category: Optional[str]
     total_qty: int
     unit_price: Optional[float]
+    kind: ProductKind = ProductKind.PRODUCT
     active: bool
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
