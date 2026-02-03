@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from rental_manager.paths import get_backup_dir, get_config_path, get_db_path
 from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.utils.backup import (
     BackupSettings,
     export_backup,
@@ -19,17 +20,19 @@ from rental_manager.utils.backup import (
 )
 
 
-class BackupScreen(QtWidgets.QWidget):
-    """Placeholder screen for backup and restore actions."""
+class BackupScreen(BaseScreen):
+    """Screen for backup and restore actions."""
 
     def __init__(self, services: AppServices) -> None:
-        super().__init__()
-        self._services = services
+        super().__init__(services)
         self._backup_dir = get_backup_dir()
         self._db_path = get_db_path()
         self._config_path = get_config_path()
         self._build_ui()
         self._load_settings()
+        self._refresh_backups()
+
+    def refresh(self) -> None:
         self._refresh_backups()
 
     def _build_ui(self) -> None:
