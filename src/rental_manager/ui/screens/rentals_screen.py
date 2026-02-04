@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import html
 import time
 from dataclasses import dataclass
@@ -27,11 +26,17 @@ from rental_manager.domain.models import (
     RentalStatus,
 )
 from rental_manager.logging_config import get_logger
-from rental_manager.paths import get_db_path, get_pdfs_dir
+from rental_manager.paths import get_config_path, get_db_path
 from rental_manager.repositories import CustomerRepo, rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
+from rental_manager.utils.documents import (
+    DocumentsSettings,
+    build_document_filename,
+    load_documents_settings,
+    save_documents_settings,
+)
 from rental_manager.utils.pdf_generator import generate_rental_pdf
 from rental_manager.ui.widgets import InfoBanner
 from rental_manager.ui.strings import (
@@ -1258,6 +1263,7 @@ class RentalsScreen(BaseScreen):
         self._rentals: List[Rental] = []
         self._customers_map: dict[int, str] = {}
         self._logger = get_logger("Agenda")
+        self._config_path = get_config_path()
         self._thread_pool = QtCore.QThreadPool.globalInstance()
         self._load_sequence = 0
         self._agenda_cache: dict[
@@ -1784,32 +1790,99 @@ class RentalsScreen(BaseScreen):
             return
         self._set_open_button_state(button, True, f"Abrir último {label} gerado.")
 
+    def _ensure_documents_dir(self) -> Path | None:
+        settings = load_documents_settings(self._config_path)
+        if settings.documents_dir:
+            candidate = Path(settings.documents_dir)
+            if candidate.exists():
+                candidate.mkdir(parents=True, exist_ok=True)
+                return candidate
+
+        selected = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Escolha a pasta padrão de documentos",
+            str(Path.home()),
+        )
+        if not selected:
+            return None
+        chosen_path = Path(selected)
+        chosen_path.mkdir(parents=True, exist_ok=True)
+        save_documents_settings(
+            self._config_path,
+            DocumentsSettings(documents_dir=str(chosen_path)),
+        )
+        return chosen_path
+
+    def _choose_document_path(self, default_path: Path) -> Path | None:
+        message = QtWidgets.QMessageBox(self)
+        message.setWindowTitle("Salvar documento")
+        message.setText("Deseja salvar na pasta padrão ou escolher outro local?")
+        default_button = message.addButton(
+            "Salvar na pasta padrão", QtWidgets.QMessageBox.AcceptRole
+        )
+        save_as_button = message.addButton(
+            "Salvar como...", QtWidgets.QMessageBox.ActionRole
+        )
+        message.addButton("Cancelar", QtWidgets.QMessageBox.RejectRole)
+        message.exec()
+
+        if message.clickedButton() == default_button:
+            return default_path
+        if message.clickedButton() == save_as_button:
+            selected, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self,
+                "Salvar documento",
+                str(default_path),
+                "PDF (*.pdf)",
+            )
+            if not selected:
+                return None
+            chosen = Path(selected)
+            if chosen.suffix.lower() != ".pdf":
+                chosen = chosen.with_suffix(".pdf")
+            return chosen
+        return None
+
     def _on_generate_document(self, doc_type: DocumentType) -> None:
         rental = self._get_selected_rental()
         if not rental or not rental.id:
             return
         try:
             rental_payload = self._build_pdf_payload(rental.id)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = (
-                get_pdfs_dir()
-                / f"pedido_{rental.id}_{timestamp}_{doc_type.value}.pdf"
+            documents_dir = self._ensure_documents_dir()
+            if not documents_dir:
+                return
+            rental_record, _, customer = rental_payload
+            file_name = build_document_filename(
+                customer.name,
+                rental_record.event_date,
+                doc_type,
             )
+            default_path = documents_dir / file_name
+            output_path = self._choose_document_path(default_path)
+            if not output_path:
+                return
             generate_rental_pdf(
                 rental_payload,
                 output_path,
                 kind=doc_type.value,
             )
-            checksum = self._calculate_checksum(output_path)
-            generated_at = datetime.now().isoformat(timespec="seconds")
-            self._services.document_repo.upsert(
-                rental_id=rental.id,
-                doc_type=doc_type,
-                file_path=str(output_path),
-                generated_at=generated_at,
-                checksum=checksum,
+            created_at = datetime.now().isoformat(timespec="seconds")
+            self._services.document_repo.add(
+                Document(
+                    id=None,
+                    created_at=created_at,
+                    doc_type=doc_type,
+                    customer_name=customer.name,
+                    reference_date=rental_record.event_date,
+                    file_name=output_path.name,
+                    file_path=str(output_path),
+                    order_id=rental.id,
+                    notes=None,
+                )
             )
             self._update_document_buttons(rental.id)
+            self._services.data_bus.data_changed.emit()
         except Exception:
             _show_error(self, "Não foi possível gerar o PDF. Tente novamente.")
             return
@@ -1886,10 +1959,3 @@ class RentalsScreen(BaseScreen):
                 )
             )
         return rental, items_for_pdf, customer
-
-    def _calculate_checksum(self, path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(8192), b""):
-                digest.update(chunk)
-        return digest.hexdigest()

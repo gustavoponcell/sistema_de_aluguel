@@ -196,9 +196,12 @@ def expense_to_record(expense: Expense) -> Dict[str, Any]:
 def document_from_row(row: sqlite3.Row) -> Document:
     return Document(
         id=_row_value(row, "id"),
-        rental_id=row["rental_id"],
-        doc_type=DocumentType(row["doc_type"]),
+        created_at=row["created_at"],
+        doc_type=DocumentType(row["type"]),
+        customer_name=row["customer_name"],
+        reference_date=_row_value(row, "reference_date"),
+        file_name=row["file_name"],
         file_path=row["file_path"],
-        generated_at=row["generated_at"],
-        checksum=row["checksum"],
+        order_id=_row_value(row, "order_id"),
+        notes=_row_value(row, "notes"),
     )
