@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
+from rental_manager.services.expense_service import ExpenseService
 from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
@@ -25,4 +26,5 @@ class AppServices:
     inventory_service: InventoryService
     rental_service: RentalService
     payment_service: PaymentService
+    expense_service: ExpenseService
     theme_manager: ThemeManager

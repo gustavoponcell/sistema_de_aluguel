@@ -44,6 +44,19 @@ class Payment:
 
 
 @dataclass(slots=True)
+class Expense:
+    id: Optional[int]
+    created_at: Optional[str]
+    date: str
+    category: Optional[str]
+    description: Optional[str]
+    amount: float
+    payment_method: Optional[str]
+    supplier: Optional[str]
+    notes: Optional[str]
+
+
+@dataclass(slots=True)
 class Product:
     id: Optional[int]
     name: str

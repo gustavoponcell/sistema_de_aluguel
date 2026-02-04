@@ -269,6 +269,27 @@ MIGRATIONS: list[Migration] = [
         WHERE kind IS NULL OR kind = '';
         """,
     ),
+    Migration(
+        version=7,
+        script="""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            date TEXT NOT NULL,
+            category TEXT,
+            description TEXT,
+            amount REAL NOT NULL CHECK (amount > 0),
+            payment_method TEXT,
+            supplier TEXT,
+            notes TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_expenses_date
+            ON expenses(date);
+        CREATE INDEX IF NOT EXISTS idx_expenses_category
+            ON expenses(category);
+        """,
+    ),
 ]
 
 

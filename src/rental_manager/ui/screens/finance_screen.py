@@ -38,9 +38,11 @@ except Exception:
 
 from dateutil.relativedelta import relativedelta
 
-from rental_manager.domain.models import PaymentStatus, RentalStatus
+from rental_manager.domain.models import Expense, PaymentStatus, RentalStatus
+from rental_manager.logging_config import get_logger
 from rental_manager.paths import get_exports_dir
 from rental_manager.repositories import rental_repo
+from rental_manager.services.errors import NotFoundError, ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.strings import TERM_ORDER_PLURAL, TITLE_SUCCESS
@@ -52,6 +54,7 @@ class SummarySnapshot:
     report: rental_repo.FinanceReport
     rentals: list[rental_repo.RentalFinanceRow]
     monthly_to_receive: list[rental_repo.MonthlyMetric]
+    total_expenses: float
 
 
 @dataclass(frozen=True)
@@ -68,7 +71,10 @@ class FinanceScreen(BaseScreen):
 
     def __init__(self, services: AppServices) -> None:
         super().__init__(services)
+        self._logger = get_logger(self.__class__.__name__)
         self._rentals: list[rental_repo.RentalFinanceRow] = []
+        self._expenses: list[Expense] = []
+        self._expense_edit_id: Optional[int] = None
         self._summary_cache: dict[tuple[str, str], SummarySnapshot] = {}
         self._charts_cache: dict[tuple[str, str], ChartsSnapshot] = {}
         self._chart_backend = self._resolve_chart_backend()
@@ -138,13 +144,16 @@ class FinanceScreen(BaseScreen):
         layout.addWidget(self._tabs)
 
         self._summary_tab = QtWidgets.QWidget()
-        self._charts_tab = QtWidgets.QWidget()
+        self._expenses_tab = QtWidgets.QWidget()
         self._reports_tab = QtWidgets.QWidget()
+        self._charts_tab = QtWidgets.QWidget()
         self._tabs.addTab(self._summary_tab, "Resumo")
-        self._tabs.addTab(self._charts_tab, "Gráficos")
+        self._tabs.addTab(self._expenses_tab, "Despesas")
         self._tabs.addTab(self._reports_tab, "Relatórios")
+        self._tabs.addTab(self._charts_tab, "Gráficos")
 
         self._build_summary_tab()
+        self._build_expenses_tab()
         self._build_charts_tab()
         self._build_reports_tab()
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -152,7 +161,7 @@ class FinanceScreen(BaseScreen):
     def _build_summary_tab(self) -> None:
         summary_layout = QtWidgets.QVBoxLayout(self._summary_tab)
 
-        cards_layout = QtWidgets.QHBoxLayout()
+        cards_layout = QtWidgets.QGridLayout()
         cards_layout.setSpacing(12)
 
         self._received_card = KpiCard(
@@ -161,13 +170,22 @@ class FinanceScreen(BaseScreen):
         self._to_receive_card = KpiCard(
             self._services.theme_manager, "Total a receber", "R$ 0,00"
         )
+        self._expense_card = KpiCard(
+            self._services.theme_manager, "Despesas no período", "R$ 0,00"
+        )
         self._count_card = KpiCard(
             self._services.theme_manager, f"{TERM_ORDER_PLURAL} no período", "0"
         )
+        self._balance_card = KpiCard(
+            self._services.theme_manager, "Saldo (Receita - Despesas)", "R$ 0,00"
+        )
 
-        cards_layout.addWidget(self._received_card)
-        cards_layout.addWidget(self._to_receive_card)
-        cards_layout.addWidget(self._count_card)
+        cards_layout.addWidget(self._received_card, 0, 0)
+        cards_layout.addWidget(self._to_receive_card, 0, 1)
+        cards_layout.addWidget(self._expense_card, 0, 2)
+        cards_layout.addWidget(self._count_card, 1, 0)
+        cards_layout.addWidget(self._balance_card, 1, 1)
+        cards_layout.setColumnStretch(2, 1)
 
         summary_layout.addLayout(cards_layout)
 
@@ -186,6 +204,108 @@ class FinanceScreen(BaseScreen):
         receivable_panel = self._create_table_panel("Pendências por mês")
         summary_layout.addWidget(receivable_panel)
         summary_layout.addStretch()
+
+    def _build_expenses_tab(self) -> None:
+        expenses_layout = QtWidgets.QVBoxLayout(self._expenses_tab)
+
+        form_group = QtWidgets.QGroupBox("Registrar despesa")
+        form_layout = QtWidgets.QFormLayout(form_group)
+
+        self._expense_date = QtWidgets.QDateEdit()
+        self._expense_date.setCalendarPopup(True)
+        self._expense_date.setDisplayFormat("dd/MM/yyyy")
+        self._expense_date.setDate(QtCore.QDate.currentDate())
+
+        self._expense_category = QtWidgets.QComboBox()
+        self._expense_category.setEditable(True)
+
+        self._expense_description = QtWidgets.QLineEdit()
+
+        self._expense_amount = QtWidgets.QDoubleSpinBox()
+        self._expense_amount.setMaximum(10_000_000)
+        self._expense_amount.setDecimals(2)
+        self._expense_amount.setPrefix("R$ ")
+
+        self._expense_payment_method = QtWidgets.QLineEdit()
+        self._expense_supplier = QtWidgets.QLineEdit()
+        self._expense_notes = QtWidgets.QTextEdit()
+        self._expense_notes.setFixedHeight(80)
+
+        form_layout.addRow("Data:", self._expense_date)
+        form_layout.addRow("Categoria:", self._expense_category)
+        form_layout.addRow("Descrição:", self._expense_description)
+        form_layout.addRow("Valor:", self._expense_amount)
+        form_layout.addRow("Forma de pagamento:", self._expense_payment_method)
+        form_layout.addRow("Fornecedor:", self._expense_supplier)
+        form_layout.addRow("Observações:", self._expense_notes)
+
+        buttons_layout = QtWidgets.QHBoxLayout()
+        buttons_layout.addStretch()
+        self._expense_save_button = QtWidgets.QPushButton("Salvar despesa")
+        self._expense_save_button.clicked.connect(self._on_expense_save)
+        self._expense_clear_button = QtWidgets.QPushButton("Limpar")
+        self._expense_clear_button.clicked.connect(self._reset_expense_form)
+        buttons_layout.addWidget(self._expense_save_button)
+        buttons_layout.addWidget(self._expense_clear_button)
+        form_layout.addRow("", buttons_layout)
+
+        expenses_layout.addWidget(form_group)
+
+        table_group = QtWidgets.QGroupBox("Despesas no período")
+        table_layout = QtWidgets.QVBoxLayout(table_group)
+        self._expense_table = QtWidgets.QTableWidget(0, 8)
+        self._expense_table.setHorizontalHeaderLabels(
+            [
+                "ID",
+                "Data",
+                "Categoria",
+                "Descrição",
+                "Valor",
+                "Forma",
+                "Fornecedor",
+                "Observações",
+            ]
+        )
+        self._expense_table.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectRows
+        )
+        self._expense_table.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self._expense_table.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self._expense_table.verticalHeader().setVisible(False)
+        expense_header = self._expense_table.horizontalHeader()
+        expense_header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
+        expense_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
+        expense_header.setSectionResizeMode(7, QtWidgets.QHeaderView.Stretch)
+
+        table_layout.addWidget(self._expense_table)
+
+        actions_layout = QtWidgets.QHBoxLayout()
+        actions_layout.addStretch()
+        self._expense_edit_button = QtWidgets.QPushButton("Editar")
+        self._expense_edit_button.clicked.connect(self._on_expense_edit)
+        self._expense_delete_button = QtWidgets.QPushButton("Excluir")
+        self._expense_delete_button.clicked.connect(self._on_expense_delete)
+        self._expense_edit_button.setEnabled(False)
+        self._expense_delete_button.setEnabled(False)
+        actions_layout.addWidget(self._expense_edit_button)
+        actions_layout.addWidget(self._expense_delete_button)
+        table_layout.addLayout(actions_layout)
+
+        self._expense_table.itemSelectionChanged.connect(
+            self._on_expense_selection_changed
+        )
+
+        expenses_layout.addWidget(table_group)
+        expenses_layout.addStretch()
 
     def _build_charts_tab(self) -> None:
         charts_layout = QtWidgets.QVBoxLayout(self._charts_tab)
@@ -274,6 +394,40 @@ class FinanceScreen(BaseScreen):
 
         table_layout.addWidget(self._table)
         reports_layout.addWidget(table_group)
+
+        expenses_group = QtWidgets.QGroupBox("Despesas no período")
+        expenses_layout = QtWidgets.QVBoxLayout(expenses_group)
+        self._expenses_report_table = QtWidgets.QTableWidget(0, 8)
+        self._expenses_report_table.setHorizontalHeaderLabels(
+            [
+                "ID",
+                "Data",
+                "Categoria",
+                "Descrição",
+                "Valor",
+                "Forma",
+                "Fornecedor",
+                "Observações",
+            ]
+        )
+        self._expenses_report_table.setSelectionMode(
+            QtWidgets.QAbstractItemView.NoSelection
+        )
+        self._expenses_report_table.setEditTriggers(
+            QtWidgets.QAbstractItemView.NoEditTriggers
+        )
+        self._expenses_report_table.verticalHeader().setVisible(False)
+        expenses_header = self._expenses_report_table.horizontalHeader()
+        expenses_header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
+        expenses_header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
+        expenses_header.setSectionResizeMode(7, QtWidgets.QHeaderView.Stretch)
+        expenses_layout.addWidget(self._expenses_report_table)
+        reports_layout.addWidget(expenses_group)
 
         export_layout = QtWidgets.QHBoxLayout()
         export_layout.addStretch()
@@ -400,12 +554,16 @@ class FinanceScreen(BaseScreen):
         self._rentals = snapshot.rentals
         self._received_card.set_value(_format_currency(snapshot.report.total_received))
         self._to_receive_card.set_value(_format_currency(snapshot.report.total_to_receive))
+        self._expense_card.set_value(_format_currency(snapshot.total_expenses))
         self._count_card.set_value(str(snapshot.report.rentals_count))
+        balance = snapshot.report.total_received - snapshot.total_expenses
+        self._balance_card.set_value(_format_currency(balance))
 
         self._populate_table(self._rentals)
         _, months, _ = self._chart_months(end_date)
         receivable_values = self._month_values(months, snapshot.monthly_to_receive)
         self._populate_receivable_table(months, receivable_values)
+        self._load_expenses_data(start_date, end_date)
         if self._charts_loaded:
             self._load_charts_data(start_date, end_date, force=force)
 
@@ -424,8 +582,14 @@ class FinanceScreen(BaseScreen):
         monthly_to_receive = rental_repo.list_monthly_to_receive(
             chart_start_date, end_date, connection=self._services.connection
         )
+        total_expenses = self._services.expense_service.get_total_by_period(
+            start_date, end_date
+        )
         return SummarySnapshot(
-            report=report, rentals=rentals, monthly_to_receive=monthly_to_receive
+            report=report,
+            rentals=rentals,
+            monthly_to_receive=monthly_to_receive,
+            total_expenses=total_expenses,
         )
 
     def _load_charts_data(
@@ -701,6 +865,203 @@ class FinanceScreen(BaseScreen):
                 QtWidgets.QTableWidgetItem(_format_currency(rental.paid_value)),
             )
         self._table.resizeRowsToContents()
+
+    def _load_expenses_data(self, start_date: str, end_date: str) -> None:
+        try:
+            self._expenses = self._services.expense_service.list_expenses(
+                start_date, end_date
+            )
+        except Exception:
+            self._logger.exception("Falha ao carregar despesas.")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível carregar as despesas do período.",
+            )
+            self._expenses = []
+        self._populate_expenses_table(self._expense_table, self._expenses)
+        self._populate_expenses_table(self._expenses_report_table, self._expenses)
+        self._refresh_expense_categories()
+
+    def _populate_expenses_table(
+        self,
+        table: QtWidgets.QTableWidget,
+        expenses: Iterable[Expense],
+    ) -> None:
+        table.setRowCount(0)
+        for row_index, expense in enumerate(expenses):
+            table.insertRow(row_index)
+            table.setItem(row_index, 0, QtWidgets.QTableWidgetItem(str(expense.id)))
+            table.setItem(
+                row_index, 1, QtWidgets.QTableWidgetItem(_format_date(expense.date))
+            )
+            table.setItem(
+                row_index,
+                2,
+                QtWidgets.QTableWidgetItem(expense.category or "—"),
+            )
+            table.setItem(
+                row_index,
+                3,
+                QtWidgets.QTableWidgetItem(expense.description or "—"),
+            )
+            table.setItem(
+                row_index,
+                4,
+                QtWidgets.QTableWidgetItem(_format_currency(expense.amount)),
+            )
+            table.setItem(
+                row_index,
+                5,
+                QtWidgets.QTableWidgetItem(expense.payment_method or "—"),
+            )
+            table.setItem(
+                row_index,
+                6,
+                QtWidgets.QTableWidgetItem(expense.supplier or "—"),
+            )
+            table.setItem(
+                row_index,
+                7,
+                QtWidgets.QTableWidgetItem(expense.notes or "—"),
+            )
+        table.resizeRowsToContents()
+        if table is self._expense_table:
+            table.clearSelection()
+            self._on_expense_selection_changed()
+
+    def _refresh_expense_categories(self) -> None:
+        try:
+            categories = self._services.expense_service.list_categories()
+        except Exception:
+            self._logger.exception("Falha ao carregar categorias de despesas.")
+            categories = []
+        current = self._expense_category.currentText()
+        self._expense_category.blockSignals(True)
+        self._expense_category.clear()
+        self._expense_category.addItems(categories)
+        if current:
+            self._expense_category.setCurrentText(current)
+        self._expense_category.blockSignals(False)
+
+    def _on_expense_selection_changed(self) -> None:
+        has_selection = self._selected_expense() is not None
+        self._expense_edit_button.setEnabled(has_selection)
+        self._expense_delete_button.setEnabled(has_selection)
+
+    def _selected_expense(self) -> Optional[Expense]:
+        selected = self._expense_table.selectionModel().selectedRows()
+        if not selected:
+            return None
+        row = selected[0].row()
+        if row < 0 or row >= len(self._expenses):
+            return None
+        return self._expenses[row]
+
+    def _reset_expense_form(self) -> None:
+        self._expense_edit_id = None
+        self._expense_date.setDate(QtCore.QDate.currentDate())
+        self._expense_category.setCurrentText("")
+        self._expense_description.clear()
+        self._expense_amount.setValue(0.0)
+        self._expense_payment_method.clear()
+        self._expense_supplier.clear()
+        self._expense_notes.clear()
+        self._expense_save_button.setText("Salvar despesa")
+
+    def _on_expense_edit(self) -> None:
+        expense = self._selected_expense()
+        if not expense:
+            return
+        parsed_date = QtCore.QDate.fromString(expense.date, "yyyy-MM-dd")
+        if parsed_date.isValid():
+            self._expense_date.setDate(parsed_date)
+        self._expense_category.setCurrentText(expense.category or "")
+        self._expense_description.setText(expense.description or "")
+        self._expense_amount.setValue(float(expense.amount))
+        self._expense_payment_method.setText(expense.payment_method or "")
+        self._expense_supplier.setText(expense.supplier or "")
+        self._expense_notes.setPlainText(expense.notes or "")
+        self._expense_edit_id = expense.id
+        self._expense_save_button.setText("Atualizar despesa")
+
+    def _on_expense_save(self) -> None:
+        date = self._expense_date.date().toString("yyyy-MM-dd")
+        category = self._expense_category.currentText().strip() or None
+        description = self._expense_description.text().strip() or None
+        amount = float(self._expense_amount.value())
+        payment_method = self._expense_payment_method.text().strip() or None
+        supplier = self._expense_supplier.text().strip() or None
+        notes = self._expense_notes.toPlainText().strip() or None
+
+        try:
+            if self._expense_edit_id:
+                self._services.expense_service.update_expense(
+                    expense_id=self._expense_edit_id,
+                    date=date,
+                    category=category,
+                    description=description,
+                    amount=amount,
+                    payment_method=payment_method,
+                    supplier=supplier,
+                    notes=notes,
+                )
+            else:
+                self._services.expense_service.create_expense(
+                    date=date,
+                    category=category,
+                    description=description,
+                    amount=amount,
+                    payment_method=payment_method,
+                    supplier=supplier,
+                    notes=notes,
+                )
+        except ValidationError as error:
+            self._logger.warning("Validação de despesa: %s", error)
+            QtWidgets.QMessageBox.warning(self, "Atenção", str(error))
+            return
+        except NotFoundError as error:
+            self._logger.warning("Despesa não encontrada: %s", error)
+            QtWidgets.QMessageBox.warning(self, "Atenção", str(error))
+            return
+        except Exception:
+            self._logger.exception("Falha ao salvar despesa.")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível salvar a despesa. Tente novamente.",
+            )
+            return
+
+        self._services.data_bus.data_changed.emit()
+        self._reset_expense_form()
+
+    def _on_expense_delete(self) -> None:
+        expense = self._selected_expense()
+        if not expense:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Confirmação",
+            "Deseja realmente excluir esta despesa?",
+        )
+        if confirm != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self._services.expense_service.delete_expense(expense.id or 0)
+        except NotFoundError as error:
+            self._logger.warning("Despesa não encontrada ao excluir: %s", error)
+            QtWidgets.QMessageBox.warning(self, "Atenção", str(error))
+            return
+        except Exception:
+            self._logger.exception("Falha ao excluir despesa.")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível excluir a despesa. Tente novamente.",
+            )
+            return
+        self._services.data_bus.data_changed.emit()
 
     def _export_csv(self) -> None:
         exports_dir = get_exports_dir()

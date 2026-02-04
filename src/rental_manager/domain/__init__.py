@@ -2,6 +2,7 @@
 
 from rental_manager.domain.models import (
     Customer,
+    Expense,
     PaymentStatus,
     Product,
     ProductKind,
@@ -12,6 +13,7 @@ from rental_manager.domain.models import (
 
 __all__ = [
     "Customer",
+    "Expense",
     "PaymentStatus",
     "Product",
     "ProductKind",

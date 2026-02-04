@@ -20,6 +20,7 @@ from rental_manager.paths import (
     get_pdfs_dir,
 )
 from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
+from rental_manager.services.expense_service import ExpenseService
 from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
@@ -73,6 +74,7 @@ def main() -> int:
         inventory_service=InventoryService(connection),
         rental_service=RentalService(connection),
         payment_service=PaymentService(connection),
+        expense_service=ExpenseService(connection),
         theme_manager=theme_manager,
     )
 
