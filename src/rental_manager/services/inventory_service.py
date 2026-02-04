@@ -18,10 +18,14 @@ def _to_iso_date(value: str | date) -> str:
     return parser.isoparse(value).date().isoformat()
 
 
-BLOCKING_STATUSES = (
+RENTAL_BLOCKING_STATUSES = (
     RentalStatus.DRAFT.value,
     RentalStatus.CONFIRMED.value,
-    RentalStatus.COMPLETED.value,
+)
+
+SALE_BLOCKING_STATUSES = (
+    RentalStatus.DRAFT.value,
+    RentalStatus.CONFIRMED.value,
 )
 
 
@@ -42,8 +46,14 @@ class InventoryService:
     ) -> int:
         start_date = _to_iso_date(start_date)
         end_date = _to_iso_date(end_date)
-        status_placeholders = ", ".join(["?"] * len(BLOCKING_STATUSES))
-        params: list[object] = [product_id, *BLOCKING_STATUSES, end_date, start_date]
+        status_placeholders = ", ".join(["?"] * len(RENTAL_BLOCKING_STATUSES))
+        params: list[object] = [
+            product_id,
+            ProductKind.RENTAL.value,
+            *RENTAL_BLOCKING_STATUSES,
+            end_date,
+            start_date,
+        ]
         exclude_clause = ""
         if exclude_rental_id is not None:
             exclude_clause = "AND r.id <> ?"
@@ -54,7 +64,9 @@ class InventoryService:
                 SELECT COALESCE(SUM(ri.qty), 0) AS reserved_qty
                 FROM rental_items ri
                 JOIN rentals r ON r.id = ri.rental_id
+                JOIN products p ON p.id = ri.product_id
                 WHERE ri.product_id = ?
+                  AND p.kind = ?
                   AND r.status IN ({status_placeholders})
                   AND r.start_date < ?
                   AND r.end_date > ?
@@ -90,6 +102,10 @@ class InventoryService:
         kind = product_row["kind"] if "kind" in product_row.keys() else None
         if kind == ProductKind.SERVICE.value:
             total_qty = max(total_qty, SERVICE_DEFAULT_QTY)
+        if kind == ProductKind.SALE.value:
+            return self.get_sale_available_qty(
+                product_id, exclude_rental_id=exclude_rental_id
+            )
         reserved_qty = self.get_reserved_qty(
             product_id,
             start_date,
@@ -105,8 +121,14 @@ class InventoryService:
         exclude_rental_id: Optional[int] = None,
     ) -> int:
         ref_date = _to_iso_date(reference_date)
-        status_placeholders = ", ".join(["?"] * len(BLOCKING_STATUSES))
-        params: list[object] = [product_id, *BLOCKING_STATUSES, ref_date, ref_date]
+        status_placeholders = ", ".join(["?"] * len(RENTAL_BLOCKING_STATUSES))
+        params: list[object] = [
+            product_id,
+            ProductKind.RENTAL.value,
+            *RENTAL_BLOCKING_STATUSES,
+            ref_date,
+            ref_date,
+        ]
         exclude_clause = ""
         if exclude_rental_id is not None:
             exclude_clause = "AND r.id <> ?"
@@ -117,7 +139,9 @@ class InventoryService:
                 SELECT COALESCE(SUM(ri.qty), 0) AS reserved_qty
                 FROM rental_items ri
                 JOIN rentals r ON r.id = ri.rental_id
+                JOIN products p ON p.id = ri.product_id
                 WHERE ri.product_id = ?
+                  AND p.kind = ?
                   AND r.status IN ({status_placeholders})
                   AND r.start_date <= ?
                   AND r.end_date > ?
@@ -152,6 +176,10 @@ class InventoryService:
         kind = product_row["kind"] if "kind" in product_row.keys() else None
         if kind == ProductKind.SERVICE.value:
             total_qty = max(total_qty, SERVICE_DEFAULT_QTY)
+        if kind == ProductKind.SALE.value:
+            return self.get_sale_available_qty(
+                product_id, exclude_rental_id=exclude_rental_id
+            )
         reserved_qty = self.on_loan(
             product_id,
             reference_date,
@@ -220,7 +248,7 @@ class InventoryService:
                 product = product_details.get(product_id)
                 if not product:
                     raise ValueError(f"Item {product_id} não encontrado.")
-                if product["kind"] == ProductKind.SERVICE.value:
+                if product["kind"] in (ProductKind.SERVICE.value, ProductKind.SALE.value):
                     continue
                 total_qty = product["total_qty"]
                 reserved_qty = self.on_loan(
@@ -271,7 +299,85 @@ class InventoryService:
             int(row["id"]): {
                 "name": row["name"],
                 "total_qty": int(row["total_qty"]),
-                "kind": row["kind"] if "kind" in row.keys() else ProductKind.PRODUCT.value,
+                "kind": row["kind"] if "kind" in row.keys() else ProductKind.RENTAL.value,
             }
             for row in rows
         }
+
+    def get_sale_reserved_qty(
+        self, product_id: int, exclude_rental_id: Optional[int] = None
+    ) -> int:
+        status_placeholders = ", ".join(["?"] * len(SALE_BLOCKING_STATUSES))
+        params: list[object] = [product_id, ProductKind.SALE.value, *SALE_BLOCKING_STATUSES]
+        exclude_clause = ""
+        if exclude_rental_id is not None:
+            exclude_clause = "AND r.id <> ?"
+            params.append(exclude_rental_id)
+        try:
+            row = self._connection.execute(
+                f"""
+                SELECT COALESCE(SUM(ri.qty), 0) AS reserved_qty
+                FROM rental_items ri
+                JOIN rentals r ON r.id = ri.rental_id
+                JOIN products p ON p.id = ri.product_id
+                WHERE ri.product_id = ?
+                  AND p.kind = ?
+                  AND r.status IN ({status_placeholders})
+                  {exclude_clause}
+                """,
+                params,
+            ).fetchone()
+        except Exception:
+            self._logger.exception(
+                "Failed to fetch sale reserved qty for product_id=%s", product_id
+            )
+            raise
+        return int(row["reserved_qty"]) if row else 0
+
+    def get_sale_available_qty(
+        self, product_id: int, exclude_rental_id: Optional[int] = None
+    ) -> int:
+        try:
+            product_row = self._connection.execute(
+                "SELECT total_qty, kind FROM products WHERE id = ?",
+                (product_id,),
+            ).fetchone()
+        except Exception:
+            self._logger.exception("Failed to fetch product for id=%s", product_id)
+            raise
+        if not product_row:
+            raise ValueError(f"Item {product_id} não encontrado.")
+        kind = product_row["kind"] if "kind" in product_row.keys() else None
+        if kind != ProductKind.SALE.value:
+            return self.available(product_id, date.today(), exclude_rental_id=exclude_rental_id)
+        total_qty = int(product_row["total_qty"])
+        reserved_qty = self.get_sale_reserved_qty(
+            product_id, exclude_rental_id=exclude_rental_id
+        )
+        return max(total_qty - reserved_qty, 0)
+
+    def validate_sale_availability(
+        self,
+        items: Iterable[tuple[int, int]],
+        exclude_rental_id: Optional[int] = None,
+    ) -> None:
+        aggregated_items = self._aggregate_items(items)
+        product_details = self._load_product_details(
+            [product_id for product_id, _ in aggregated_items]
+        )
+        for product_id, qty in aggregated_items:
+            available_qty = self.get_sale_available_qty(
+                product_id, exclude_rental_id=exclude_rental_id
+            )
+            if qty > available_qty:
+                product_label = (
+                    product_details.get(product_id, {}).get("name") or f"ID {product_id}"
+                )
+                raise ValueError(
+                    "Estoque insuficiente para venda do item {product}. "
+                    "Disponível {available}, solicitado {requested}.".format(
+                        product=product_label,
+                        available=available_qty,
+                        requested=qty,
+                    )
+                )

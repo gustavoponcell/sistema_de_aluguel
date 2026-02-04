@@ -26,11 +26,12 @@ class DocumentType(str, Enum):
 
 
 class ProductKind(str, Enum):
-    PRODUCT = "product"
+    RENTAL = "rental"
+    SALE = "sale"
     SERVICE = "service"
 
 
-SERVICE_DEFAULT_QTY = 9999
+SERVICE_DEFAULT_QTY = 999
 
 
 @dataclass(slots=True)
@@ -64,7 +65,7 @@ class Product:
     total_qty: int
     unit_price: Optional[float]
     active: bool
-    kind: ProductKind = ProductKind.PRODUCT
+    kind: ProductKind = ProductKind.RENTAL
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -84,9 +85,11 @@ class Rental:
     id: Optional[int]
     customer_id: int
     event_date: str
-    start_date: str
-    end_date: str
+    start_date: Optional[str]
+    end_date: Optional[str]
     address: Optional[str]
+    contact_phone: Optional[str] = None
+    delivery_required: bool = False
     status: RentalStatus
     total_value: float
     paid_value: float

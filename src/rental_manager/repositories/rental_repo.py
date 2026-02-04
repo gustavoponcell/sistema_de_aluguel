@@ -27,8 +27,8 @@ class RentalFinanceRow:
     id: int
     customer_name: str
     event_date: str
-    start_date: str
-    end_date: str
+    start_date: Optional[str]
+    end_date: Optional[str]
     status: RentalStatus
     payment_status: PaymentStatus
     total_value: float
@@ -49,6 +49,9 @@ class RankedMetric:
 
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+ORDER_DATE_EXPR = "COALESCE(r.start_date, r.event_date)"
 
 
 def _coerce_status(status: str | RentalStatus) -> RentalStatus:
@@ -139,9 +142,11 @@ def _column_exists(
 def create_rental(
     customer_id: int,
     event_date: str,
-    start_date: str,
-    end_date: str,
+    start_date: Optional[str],
+    end_date: Optional[str],
     address: Optional[str],
+    contact_phone: Optional[str],
+    delivery_required: bool,
     items: Iterable[dict[str, object]],
     total_value: Optional[float],
     paid_value: float = 0,
@@ -167,6 +172,8 @@ def create_rental(
                         start_date,
                         end_date,
                         address,
+                        contact_phone,
+                        delivery_required,
                         status,
                         total_value,
                         paid_value,
@@ -182,6 +189,8 @@ def create_rental(
                         start_date,
                         end_date,
                         address,
+                        contact_phone,
+                        int(delivery_required),
                         rental_status.value,
                         final_total,
                         paid_value,
@@ -226,6 +235,8 @@ def create_rental(
         start_date=start_date,
         end_date=end_date,
         address=address,
+        contact_phone=contact_phone,
+        delivery_required=delivery_required,
         status=rental_status,
         total_value=final_total,
         paid_value=paid_value,
@@ -239,9 +250,11 @@ def update_rental(
     rental_id: int,
     customer_id: int,
     event_date: str,
-    start_date: str,
-    end_date: str,
+    start_date: Optional[str],
+    end_date: Optional[str],
     address: Optional[str],
+    contact_phone: Optional[str],
+    delivery_required: bool,
     items: Iterable[dict[str, object]],
     total_value: Optional[float],
     paid_value: float,
@@ -268,6 +281,8 @@ def update_rental(
                         start_date = ?,
                         end_date = ?,
                         address = ?,
+                        contact_phone = ?,
+                        delivery_required = ?,
                         status = ?,
                         total_value = ?,
                         paid_value = ?,
@@ -281,6 +296,8 @@ def update_rental(
                         start_date,
                         end_date,
                         address,
+                        contact_phone,
+                        int(delivery_required),
                         rental_status.value,
                         final_total,
                         paid_value,
@@ -330,6 +347,8 @@ def update_rental(
         start_date=start_date,
         end_date=end_date,
         address=address,
+        contact_phone=contact_phone,
+        delivery_required=delivery_required,
         status=rental_status,
         total_value=final_total,
         paid_value=paid_value,
@@ -422,8 +441,8 @@ def get_finance_report_by_period(
                     """
                     SELECT COALESCE(SUM(paid_value), 0) AS total_received
                     FROM rentals
-                    WHERE start_date >= ?
-                      AND start_date <= ?
+                    WHERE COALESCE(start_date, event_date) >= ?
+                      AND COALESCE(start_date, event_date) <= ?
                       AND status != 'canceled'
                     """,
                     (start_date, end_date),
@@ -444,8 +463,8 @@ def get_finance_report_by_period(
                     ), 0) AS total_to_receive,
                     COUNT(*) AS rentals_count
                 FROM rentals r
-                WHERE r.start_date >= ?
-                  AND r.start_date <= ?
+                WHERE COALESCE(r.start_date, r.event_date) >= ?
+                  AND COALESCE(r.start_date, r.event_date) <= ?
                   AND r.status != 'canceled'
                 """,
                 (start_date, end_date),
@@ -472,7 +491,7 @@ def list_rentals_by_period(
 ) -> list[RentalFinanceRow]:
     """List rentals for finance reports in the given start date period."""
     logger = get_logger("rental_repo")
-    query = """
+    query = f"""
         SELECT
             r.id,
             r.event_date,
@@ -485,10 +504,10 @@ def list_rentals_by_period(
             c.name AS customer_name
         FROM rentals r
         JOIN customers c ON c.id = r.customer_id
-        WHERE r.start_date >= ?
-          AND r.start_date <= ?
+        WHERE {ORDER_DATE_EXPR} >= ?
+          AND {ORDER_DATE_EXPR} <= ?
           AND r.status != 'canceled'
-        ORDER BY r.event_date, r.start_date, r.id
+        ORDER BY {ORDER_DATE_EXPR}, r.event_date, r.id
     """
     try:
         with _optional_connection(connection) as conn:
@@ -522,15 +541,15 @@ def list_monthly_revenue(
 ) -> list[MonthlyMetric]:
     """Sum rental total_value by month using rentals.start_date."""
     logger = get_logger("rental_repo")
-    query = """
+    query = f"""
         SELECT
-            strftime('%Y-%m', r.start_date) AS month,
+            strftime('%Y-%m', {ORDER_DATE_EXPR}) AS month,
             COALESCE(SUM(r.total_value), 0) AS total_value
         FROM rentals r
-        WHERE r.start_date >= ?
-          AND r.start_date <= ?
+        WHERE {ORDER_DATE_EXPR} >= ?
+          AND {ORDER_DATE_EXPR} <= ?
           AND r.status != 'canceled'
-        GROUP BY strftime('%Y-%m', r.start_date)
+        GROUP BY strftime('%Y-%m', {ORDER_DATE_EXPR})
         ORDER BY month
     """
     try:
@@ -554,15 +573,15 @@ def list_monthly_rentals(
 ) -> list[MonthlyMetric]:
     """Count rentals by month using rentals.start_date."""
     logger = get_logger("rental_repo")
-    query = """
+    query = f"""
         SELECT
-            strftime('%Y-%m', r.start_date) AS month,
+            strftime('%Y-%m', {ORDER_DATE_EXPR}) AS month,
             COUNT(*) AS total_count
         FROM rentals r
-        WHERE r.start_date >= ?
-          AND r.start_date <= ?
+        WHERE {ORDER_DATE_EXPR} >= ?
+          AND {ORDER_DATE_EXPR} <= ?
           AND r.status != 'canceled'
-        GROUP BY strftime('%Y-%m', r.start_date)
+        GROUP BY strftime('%Y-%m', {ORDER_DATE_EXPR})
         ORDER BY month
     """
     try:
@@ -602,15 +621,15 @@ def list_monthly_received(
                 """
                 rows = conn.execute(query, (start_date, end_date)).fetchall()
             else:
-                query = """
+                query = f"""
                     SELECT
-                        strftime('%Y-%m', r.start_date) AS month,
+                        strftime('%Y-%m', {ORDER_DATE_EXPR}) AS month,
                         COALESCE(SUM(r.paid_value), 0) AS total_received
                     FROM rentals r
-                    WHERE r.start_date >= ?
-                      AND r.start_date <= ?
+                    WHERE {ORDER_DATE_EXPR} >= ?
+                      AND {ORDER_DATE_EXPR} <= ?
                       AND r.status != 'canceled'
-                    GROUP BY strftime('%Y-%m', r.start_date)
+                    GROUP BY strftime('%Y-%m', {ORDER_DATE_EXPR})
                     ORDER BY month
                 """
                 rows = conn.execute(query, (start_date, end_date)).fetchall()
@@ -632,9 +651,9 @@ def list_monthly_to_receive(
 ) -> list[MonthlyMetric]:
     """Sum open receivables by month using rentals.start_date."""
     logger = get_logger("rental_repo")
-    query = """
+    query = f"""
         SELECT
-            strftime('%Y-%m', r.start_date) AS month,
+            strftime('%Y-%m', {ORDER_DATE_EXPR}) AS month,
             COALESCE(SUM(
                 CASE
                     WHEN r.status = 'confirmed'
@@ -647,10 +666,10 @@ def list_monthly_to_receive(
                 END
             ), 0) AS total_open
         FROM rentals r
-        WHERE r.start_date >= ?
-          AND r.start_date <= ?
+        WHERE {ORDER_DATE_EXPR} >= ?
+          AND {ORDER_DATE_EXPR} <= ?
           AND r.status != 'canceled'
-        GROUP BY strftime('%Y-%m', r.start_date)
+        GROUP BY strftime('%Y-%m', {ORDER_DATE_EXPR})
         ORDER BY month
     """
     try:
@@ -675,15 +694,15 @@ def list_top_products_by_qty(
 ) -> list[RankedMetric]:
     """Return top products by rented quantity for the given start date period."""
     logger = get_logger("rental_repo")
-    query = """
+    query = f"""
         SELECT
             COALESCE(p.name, 'Produto removido') AS product_name,
             COALESCE(SUM(ri.qty), 0) AS total_qty
         FROM rental_items ri
         JOIN rentals r ON r.id = ri.rental_id
         LEFT JOIN products p ON p.id = ri.product_id
-        WHERE r.start_date >= ?
-          AND r.start_date <= ?
+        WHERE {ORDER_DATE_EXPR} >= ?
+          AND {ORDER_DATE_EXPR} <= ?
           AND r.status != 'canceled'
         GROUP BY ri.product_id, p.name
         ORDER BY total_qty DESC
@@ -729,8 +748,8 @@ def list_top_products_by_revenue(
                 FROM rental_items ri
                 JOIN rentals r ON r.id = ri.rental_id
                 {join_products}
-                WHERE r.start_date >= ?
-                  AND r.start_date <= ?
+                WHERE {ORDER_DATE_EXPR} >= ?
+                  AND {ORDER_DATE_EXPR} <= ?
                   AND r.status != 'canceled'
                 GROUP BY ri.product_id, p.name
                 ORDER BY total_revenue DESC

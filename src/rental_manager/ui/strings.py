@@ -17,11 +17,12 @@ TERM_ORDER_PLURAL = "Pedidos"
 TERM_ORDER_LOWER = "pedido"
 TERM_ORDER_PLURAL_LOWER = "pedidos"
 TERM_ITEM = "Item"
-TERM_PRODUCT = "Produto"
+TERM_RENTAL = "Aluguel"
+TERM_SALE = "Venda"
 TERM_SERVICE = "Serviço"
 
 LABEL_STOCK_TOTAL = "Total"
-LABEL_STOCK_IN_USE = "Em uso"
+LABEL_STOCK_IN_USE = "Em uso/Reservado"
 LABEL_STOCK_AVAILABLE = "Disponível"
 LABEL_STOCK_TYPE = "Tipo"
 
@@ -33,4 +34,6 @@ def product_kind_label(kind: ProductKind | str) -> str:
         normalized = str(kind)
     if normalized == ProductKind.SERVICE.value:
         return TERM_SERVICE
-    return TERM_PRODUCT
+    if normalized == ProductKind.SALE.value:
+        return TERM_SALE
+    return TERM_RENTAL

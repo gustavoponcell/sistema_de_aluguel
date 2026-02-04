@@ -6,11 +6,12 @@ import sqlite3
 from datetime import date, timedelta
 from typing import Iterable, Optional
 
+from rental_manager.db.connection import transaction
 from rental_manager.domain.models import Rental, RentalItem, RentalStatus
 from rental_manager.logging_config import get_logger
 from rental_manager.repositories import payment_repo, rental_repo
 from rental_manager.services.errors import NotFoundError, ValidationError
-from rental_manager.services.inventory_service import InventoryService
+from rental_manager.services.order_service import OrderService
 
 
 class RentalService:
@@ -19,26 +20,9 @@ class RentalService:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
         self._connection.row_factory = sqlite3.Row
-        self._inventory_service = InventoryService(connection)
+        self._order_service = OrderService(connection)
         self._payment_repo = payment_repo.PaymentRepository(connection)
         self._logger = get_logger(self.__class__.__name__)
-
-    def _items_for_validation(
-        self, items: Iterable[dict[str, object]]
-    ) -> list[tuple[int, int]]:
-        aggregated: dict[int, int] = {}
-        for item in items:
-            product_id = int(item["product_id"])
-            aggregated[product_id] = aggregated.get(product_id, 0) + int(item["qty"])
-        return list(aggregated.items())
-
-    def _items_from_rental_items(
-        self, items: Iterable[RentalItem]
-    ) -> list[tuple[int, int]]:
-        aggregated: dict[int, int] = {}
-        for item in items:
-            aggregated[item.product_id] = aggregated.get(item.product_id, 0) + item.qty
-        return list(aggregated.items())
 
     def _get_rental_with_items(self, rental_id: int) -> tuple[Rental, list[RentalItem]]:
         rental_data = rental_repo.get_rental_with_items(
@@ -48,25 +32,11 @@ class RentalService:
             raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return rental_data
 
-    def _validate_inventory(
-        self,
-        items: Iterable[tuple[int, int]],
-        start_date: str,
-        end_date: str,
-        *,
-        exclude_rental_id: Optional[int] = None,
-    ) -> None:
-        try:
-            self._inventory_service.validate_request(
-                items,
-                start_date,
-                end_date,
-                exclude_rental_id=exclude_rental_id,
-            )
-        except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
-
-    def _normalize_dates(self, start_date: str, end_date: str) -> tuple[str, str]:
+    def _normalize_dates(
+        self, start_date: Optional[str], end_date: Optional[str]
+    ) -> tuple[Optional[str], Optional[str]]:
+        if not start_date or not end_date:
+            return None, None
         try:
             start = date.fromisoformat(start_date)
             end = date.fromisoformat(end_date)
@@ -89,22 +59,34 @@ class RentalService:
         self,
         customer_id: int,
         event_date: str,
-        start_date: str,
-        end_date: str,
+        start_date: Optional[str],
+        end_date: Optional[str],
         address: Optional[str],
+        contact_phone: Optional[str],
+        delivery_required: bool,
         items: Iterable[dict[str, object]],
         total_value: Optional[float] = None,
         paid_value: float = 0.0,
     ) -> Rental:
         start_date, end_date = self._normalize_dates(start_date, end_date)
-        items_for_validation = self._items_for_validation(items)
-        self._validate_inventory(items_for_validation, start_date, end_date)
+        try:
+            self._order_service.validate_availability(
+                items,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        except ValidationError:
+            raise
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         return rental_repo.create_rental(
             customer_id,
             event_date,
             start_date,
             end_date,
             address,
+            contact_phone,
+            delivery_required,
             items,
             total_value,
             paid_value=paid_value,
@@ -117,21 +99,27 @@ class RentalService:
         rental_id: int,
         customer_id: int,
         event_date: str,
-        start_date: str,
-        end_date: str,
+        start_date: Optional[str],
+        end_date: Optional[str],
         address: Optional[str],
+        contact_phone: Optional[str],
+        delivery_required: bool,
         items: Iterable[dict[str, object]],
         total_value: Optional[float],
         status: str | RentalStatus,
     ) -> Rental:
         start_date, end_date = self._normalize_dates(start_date, end_date)
-        items_for_validation = self._items_for_validation(items)
-        self._validate_inventory(
-            items_for_validation,
-            start_date,
-            end_date,
-            exclude_rental_id=rental_id,
-        )
+        try:
+            self._order_service.validate_availability(
+                items,
+                start_date=start_date,
+                end_date=end_date,
+                exclude_rental_id=rental_id,
+            )
+        except ValidationError:
+            raise
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         paid_total = self._payment_repo.get_paid_total(rental_id)
         rental = rental_repo.update_rental(
             rental_id,
@@ -140,6 +128,8 @@ class RentalService:
             start_date,
             end_date,
             address,
+            contact_phone,
+            delivery_required,
             items,
             total_value,
             paid_total,
@@ -152,13 +142,17 @@ class RentalService:
 
     def confirm_rental(self, rental_id: int) -> bool:
         rental, items = self._get_rental_with_items(rental_id)
-        items_for_validation = self._items_from_rental_items(items)
-        self._validate_inventory(
-            items_for_validation,
-            rental.start_date,
-            rental.end_date,
-            exclude_rental_id=rental_id,
-        )
+        try:
+            self._order_service.validate_availability(
+                items,
+                start_date=rental.start_date,
+                end_date=rental.end_date,
+                exclude_rental_id=rental_id,
+            )
+        except ValidationError:
+            raise
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         updated = rental_repo.set_status(
             rental_id, RentalStatus.CONFIRMED, connection=self._connection
         )
@@ -175,9 +169,16 @@ class RentalService:
         return True
 
     def complete_rental(self, rental_id: int) -> bool:
-        updated = rental_repo.set_status(
-            rental_id, RentalStatus.COMPLETED, connection=self._connection
-        )
+        rental, items = self._get_rental_with_items(rental_id)
+        if rental.status == RentalStatus.COMPLETED:
+            return True
+        with transaction(self._connection):
+            self._order_service.apply_sale_stock_deduction(
+                items, exclude_rental_id=rental_id
+            )
+            updated = rental_repo.set_status(
+                rental_id, RentalStatus.COMPLETED, connection=self._connection
+            )
         if not updated:
             raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return True

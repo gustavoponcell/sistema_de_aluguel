@@ -229,7 +229,7 @@ def _debug_run() -> None:
                 category="mesa",
                 total_qty=10,
                 unit_price=25.0,
-                kind=ProductKind.PRODUCT,
+                kind=ProductKind.RENTAL,
                 active=True,
             )
             repo.update(
@@ -238,7 +238,7 @@ def _debug_run() -> None:
                 category="mesa",
                 total_qty=12,
                 unit_price=27.5,
-                kind=ProductKind.PRODUCT,
+                kind=ProductKind.RENTAL,
                 active=True,
             )
             repo.soft_delete(product.id or 0)

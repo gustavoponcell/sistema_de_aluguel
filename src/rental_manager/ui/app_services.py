@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
 from rental_manager.services.expense_service import ExpenseService
 from rental_manager.services.inventory_service import InventoryService
+from rental_manager.services.order_service import OrderService
 from rental_manager.services.payment_service import PaymentService
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.data_bus import DataEventBus
@@ -24,6 +25,7 @@ class AppServices:
     document_repo: DocumentRepository
     product_repo: ProductRepo
     inventory_service: InventoryService
+    order_service: OrderService
     rental_service: RentalService
     payment_service: PaymentService
     expense_service: ExpenseService

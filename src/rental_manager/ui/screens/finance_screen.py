@@ -369,7 +369,7 @@ class FinanceScreen(BaseScreen):
             [
                 "ID",
                 "Cliente",
-                "Evento",
+                "Data do pedido",
                 "Início",
                 "Fim",
                 "Status",
@@ -1076,7 +1076,7 @@ class FinanceScreen(BaseScreen):
         headers = [
             "ID",
             "Cliente",
-            "Evento",
+            "Data do pedido",
             "Início",
             "Fim",
             "Status",
@@ -1124,7 +1124,9 @@ def _format_currency(value: float) -> str:
     return f"R$ {formatted.replace(',', 'X').replace('.', ',').replace('X', '.')}"
 
 
-def _format_date(value: str) -> str:
+def _format_date(value: Optional[str]) -> str:
+    if not value:
+        return "—"
     parsed = QtCore.QDate.fromString(value, "yyyy-MM-dd")
     return parsed.toString("dd/MM/yyyy") if parsed.isValid() else value
 
