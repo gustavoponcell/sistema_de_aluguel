@@ -151,6 +151,7 @@ class RentalsLoadResult:
     rentals: List[Rental]
     rentals_today: List[Rental]
     customers_map: dict[int, str]
+    rental_kinds: dict[int, ProductKind]
     timings: dict[str, float]
 
 
@@ -209,6 +210,13 @@ class RentalsLoadTask(QtCore.QRunnable):
                 end_date=self.today,
                 connection=connection,
             )
+            rental_ids = [
+                rental.id for rental in rentals + rentals_today if rental.id
+            ]
+            rental_kinds = rental_repo.list_rental_kinds(
+                rental_ids,
+                connection=connection,
+            )
             customers = CustomerRepo(connection).list_all()
             query_time = time.perf_counter() - query_start
 
@@ -230,6 +238,7 @@ class RentalsLoadTask(QtCore.QRunnable):
                 rentals=rentals,
                 rentals_today=rentals_today,
                 customers_map=customers_map,
+                rental_kinds=rental_kinds,
                 timings=timings,
             )
             self.signals.completed.emit(result)
@@ -1262,6 +1271,7 @@ class RentalsScreen(BaseScreen):
         super().__init__(services)
         self._rentals: List[Rental] = []
         self._customers_map: dict[int, str] = {}
+        self._rental_kinds: dict[int, ProductKind] = {}
         self._logger = get_logger("Agenda")
         self._config_path = get_config_path()
         self._thread_pool = QtCore.QThreadPool.globalInstance()
@@ -1295,7 +1305,8 @@ class RentalsScreen(BaseScreen):
         title.setStyleSheet("font-size: 24px; font-weight: 600;")
 
         subtitle = QtWidgets.QLabel(
-            "Consulte os pedidos agendados, filtre por datas, status e pagamentos."
+            "Consulte pedidos de aluguel (com período) e vendas/serviços "
+            "(data única). Filtre por datas, status e pagamentos."
         )
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #555; font-size: 14px;")
@@ -1374,9 +1385,19 @@ class RentalsScreen(BaseScreen):
         self._loading_label.setVisible(False)
         layout.addWidget(self._loading_label)
 
-        self.table = QtWidgets.QTableWidget(0, 7)
+        self.table = QtWidgets.QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(
-            ["Data", "Cliente", "Endereço", "Status", "Pagamento", "Total", "Pago"]
+            [
+                "Tipo",
+                "Data",
+                "Período",
+                "Cliente",
+                "Endereço",
+                "Status",
+                "Pagamento",
+                "Total",
+                "Pago",
+            ]
         )
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -1386,11 +1407,13 @@ class RentalsScreen(BaseScreen):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(7, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(8, QtWidgets.QHeaderView.ResizeToContents)
         layout.addWidget(self.table)
 
         actions_layout = QtWidgets.QHBoxLayout()
@@ -1600,6 +1623,7 @@ class RentalsScreen(BaseScreen):
         render_start = time.perf_counter()
         self._customers_map = result.customers_map
         self._rentals = result.rentals
+        self._rental_kinds = result.rental_kinds
         self._render_table()
         self._render_today_summary(result.rentals_today)
         render_time = time.perf_counter() - render_start
@@ -1626,8 +1650,10 @@ class RentalsScreen(BaseScreen):
         items = []
         for rental in rentals_today[:5]:
             customer_name = self._customers_map.get(rental.customer_id, "—")
+            kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
             items.append(
                 f"{html.escape(customer_name)} — "
+                f"{html.escape(product_kind_label(kind))} — "
                 f"{html.escape(_status_label(rental.status))} — "
                 f"{html.escape(_format_currency(rental.total_value))}"
             )
@@ -1639,37 +1665,82 @@ class RentalsScreen(BaseScreen):
         self.today_banner.set_content(list_markup)
 
     def _render_table(self) -> None:
+        self._rentals = sorted(self._rentals, key=self._rental_sort_key)
         self.table.setRowCount(len(self._rentals))
         self.table.setUpdatesEnabled(False)
         for row, rental in enumerate(self._rentals):
+            kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
+            period_label = self._format_period(rental, kind)
             customer_name = self._customers_map.get(rental.customer_id, "—")
             self.table.setItem(
-                row, 0, QtWidgets.QTableWidgetItem(_format_date(rental.event_date))
+                row, 0, QtWidgets.QTableWidgetItem(product_kind_label(kind))
             )
-            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(customer_name))
+            self.table.setItem(
+                row, 1, QtWidgets.QTableWidgetItem(_format_date(rental.event_date))
+            )
             self.table.setItem(
                 row,
                 2,
-                QtWidgets.QTableWidgetItem(_summarize_address(rental.address)),
+                QtWidgets.QTableWidgetItem(period_label),
             )
             self.table.setItem(
-                row, 3, QtWidgets.QTableWidgetItem(_status_label(rental.status))
+                row, 3, QtWidgets.QTableWidgetItem(customer_name)
             )
             self.table.setItem(
                 row,
                 4,
+                QtWidgets.QTableWidgetItem(_summarize_address(rental.address)),
+            )
+            self.table.setItem(
+                row, 5, QtWidgets.QTableWidgetItem(_status_label(rental.status))
+            )
+            self.table.setItem(
+                row,
+                6,
                 QtWidgets.QTableWidgetItem(_payment_label(rental.payment_status)),
             )
             self.table.setItem(
-                row, 5, QtWidgets.QTableWidgetItem(_format_currency(rental.total_value))
+                row, 7, QtWidgets.QTableWidgetItem(_format_currency(rental.total_value))
             )
             self.table.setItem(
-                row, 6, QtWidgets.QTableWidgetItem(_format_currency(rental.paid_value))
+                row, 8, QtWidgets.QTableWidgetItem(_format_currency(rental.paid_value))
             )
+            self._apply_row_style(row, kind)
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
         self.table.setUpdatesEnabled(True)
         self._on_selection_changed()
+
+    def _rental_sort_key(self, rental: Rental) -> tuple[int, str, str]:
+        kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
+        kind_weight = {
+            ProductKind.RENTAL: 0,
+            ProductKind.SALE: 1,
+            ProductKind.SERVICE: 2,
+        }.get(kind, 3)
+        date_key = rental.start_date or rental.event_date or ""
+        return (kind_weight, date_key, rental.event_date or "")
+
+    def _format_period(self, rental: Rental, kind: ProductKind) -> str:
+        if kind == ProductKind.RENTAL and rental.start_date and rental.end_date:
+            start_label = _format_date(rental.start_date)
+            end_label = _format_date(rental.end_date)
+            return f"{start_label} → {end_label}"
+        return "Data única"
+
+    def _apply_row_style(self, row: int, kind: ProductKind) -> None:
+        color_map = {
+            ProductKind.RENTAL: QtGui.QColor("#E8F1FF"),
+            ProductKind.SALE: QtGui.QColor("#E8F7EE"),
+            ProductKind.SERVICE: QtGui.QColor("#F3EAFE"),
+        }
+        color = color_map.get(kind)
+        if not color:
+            return
+        for column in range(self.table.columnCount()):
+            item = self.table.item(row, column)
+            if item:
+                item.setBackground(color)
 
     def _get_selected_rental(self) -> Optional[Rental]:
         selected = self.table.selectionModel().selectedRows()
