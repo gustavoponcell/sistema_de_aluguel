@@ -21,6 +21,7 @@ from rental_manager.domain.models import (
     Payment,
     PaymentStatus,
     Product,
+    ProductKind,
     Rental,
     RentalItem,
     RentalStatus,
@@ -50,7 +51,9 @@ def _format_currency(value: float) -> str:
     return f"R$ {formatted.replace(',', 'X').replace('.', ',').replace('X', '.')}"
 
 
-def _format_date(value: str) -> str:
+def _format_date(value: Optional[str]) -> str:
+    if not value:
+        return "—"
     parsed = QtCore.QDate.fromString(value, "yyyy-MM-dd")
     return parsed.toString("dd/MM/yyyy") if parsed.isValid() else value
 
@@ -121,6 +124,7 @@ class RentalItemDraft:
 
     product_id: int
     product_name: str
+    product_kind: ProductKind
     qty: int
     unit_price: float
 
@@ -284,12 +288,19 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         info_layout = QtWidgets.QFormLayout(info_group)
 
         info_layout.addRow("Cliente:", QtWidgets.QLabel(customer.name if customer else "—"))
+        contact_phone = self._rental.contact_phone or (customer.phone if customer else None)
         info_layout.addRow(
             "Telefone:",
-            QtWidgets.QLabel(customer.phone if customer and customer.phone else "—"),
+            QtWidgets.QLabel(contact_phone if contact_phone else "—"),
         )
-        info_layout.addRow("Evento:", QtWidgets.QLabel(_format_date(self._rental.event_date)))
-        info_layout.addRow("Início:", QtWidgets.QLabel(_format_date(self._rental.start_date)))
+        info_layout.addRow(
+            "Data do pedido:",
+            QtWidgets.QLabel(_format_date(self._rental.event_date)),
+        )
+        info_layout.addRow(
+            "Início:",
+            QtWidgets.QLabel(_format_date(self._rental.start_date)),
+        )
         info_layout.addRow("Fim:", QtWidgets.QLabel(_format_date(self._rental.end_date)))
         info_layout.addRow(
             "Status:", QtWidgets.QLabel(_status_label(self._rental.status))
@@ -305,6 +316,10 @@ class RentalDetailsDialog(QtWidgets.QDialog):
             _format_currency(self._rental.paid_value)
         )
         info_layout.addRow("Pago:", self._paid_value_label)
+        info_layout.addRow(
+            "Entrega:",
+            QtWidgets.QLabel("Sim" if self._rental.delivery_required else "Retirada"),
+        )
         info_layout.addRow(
             "Endereço:",
             QtWidgets.QLabel(self._rental.address or "—"),
@@ -662,6 +677,9 @@ class RentalEditDialog(QtWidgets.QDialog):
                     product_name=product_map.get(item.product_id).name
                     if item.product_id in product_map
                     else "—",
+                    product_kind=product_map.get(item.product_id).kind
+                    if item.product_id in product_map
+                    else ProductKind.RENTAL,
                     qty=item.qty,
                     unit_price=item.unit_price,
                 )
@@ -690,6 +708,9 @@ class RentalEditDialog(QtWidgets.QDialog):
         customer_row.addWidget(self.customer_combo)
         customer_row.addStretch()
 
+        self.phone_input = QtWidgets.QLineEdit()
+        self.phone_input.setPlaceholderText("Opcional")
+
         self.event_date_input = QtWidgets.QDateEdit()
         self.event_date_input.setCalendarPopup(True)
         self.event_date_input.setDisplayFormat("dd/MM/yyyy")
@@ -702,28 +723,39 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.start_date_input.dateChanged.connect(self._sync_end_date_min)
         self.start_date_input.dateChanged.connect(self._on_dates_changed)
         self.end_date_input.dateChanged.connect(self._on_dates_changed)
+        self.event_date_label = QtWidgets.QLabel("Data do pedido")
+        self.start_date_label = QtWidgets.QLabel("Início")
+        self.end_date_label = QtWidgets.QLabel("Fim")
         self.duration_label = QtWidgets.QLabel()
         self.duration_label.setStyleSheet("color: #666; font-size: 13px;")
 
         dates_row = QtWidgets.QHBoxLayout()
-        dates_row.addWidget(QtWidgets.QLabel("Evento"))
+        dates_row.addWidget(self.event_date_label)
         dates_row.addWidget(self.event_date_input)
         dates_row.addSpacing(12)
-        dates_row.addWidget(QtWidgets.QLabel("Início"))
+        dates_row.addWidget(self.start_date_label)
         dates_row.addWidget(self.start_date_input)
         dates_row.addSpacing(12)
-        dates_row.addWidget(QtWidgets.QLabel("Fim"))
+        dates_row.addWidget(self.end_date_label)
         dates_row.addWidget(self.end_date_input)
         dates_row.addSpacing(12)
         dates_row.addWidget(self.duration_label)
         dates_row.addStretch()
+
+        self.delivery_checkbox = QtWidgets.QCheckBox("Entrega?")
+        self.delivery_checkbox.stateChanged.connect(self._on_delivery_changed)
+        self.delivery_hint = QtWidgets.QLabel("Retirada pelo cliente")
+        self.delivery_hint.setStyleSheet("color: #666; font-size: 13px;")
 
         self.address_input = QtWidgets.QPlainTextEdit()
         self.address_input.setFixedHeight(80)
         self.address_input.setPlaceholderText("Rua, número, bairro, referência")
 
         form.addRow("Cliente:", customer_row)
+        form.addRow("Telefone:", self.phone_input)
         form.addRow("Datas:", dates_row)
+        form.addRow("", self.delivery_checkbox)
+        form.addRow("", self.delivery_hint)
         form.addRow("Endereço:", self.address_input)
 
         layout.addLayout(form)
@@ -823,6 +855,8 @@ class RentalEditDialog(QtWidgets.QDialog):
             }
             """
         )
+        self._apply_delivery_state()
+        self._toggle_rental_dates()
 
     def _refresh_rental_payment(self) -> None:
         try:
@@ -833,6 +867,28 @@ class RentalEditDialog(QtWidgets.QDialog):
             return
         if rental_data:
             self._rental, _items = rental_data
+
+    def _on_delivery_changed(self) -> None:
+        self._apply_delivery_state()
+
+    def _apply_delivery_state(self) -> None:
+        delivery_required = self.delivery_checkbox.isChecked()
+        self.address_input.setEnabled(delivery_required)
+        self.delivery_hint.setVisible(not delivery_required)
+        if not delivery_required:
+            self.address_input.clear()
+
+    def _toggle_rental_dates(self) -> None:
+        has_rental_items = any(
+            item.product_kind == ProductKind.RENTAL for item in self._items
+        )
+        self.start_date_label.setVisible(has_rental_items)
+        self.start_date_input.setVisible(has_rental_items)
+        self.end_date_label.setVisible(has_rental_items)
+        self.end_date_input.setVisible(has_rental_items)
+        self.duration_label.setVisible(has_rental_items)
+        if has_rental_items:
+            self._sync_end_date_min(self.start_date_input.date())
 
     def _load_customers(self) -> None:
         try:
@@ -868,19 +924,32 @@ class RentalEditDialog(QtWidgets.QDialog):
         if customer_index >= 0:
             self.customer_combo.setCurrentIndex(customer_index)
         event_date = QtCore.QDate.fromString(self._rental.event_date, "yyyy-MM-dd")
-        start_date = QtCore.QDate.fromString(self._rental.start_date, "yyyy-MM-dd")
-        end_date = QtCore.QDate.fromString(self._rental.end_date, "yyyy-MM-dd")
+        start_date = (
+            QtCore.QDate.fromString(self._rental.start_date, "yyyy-MM-dd")
+            if self._rental.start_date
+            else QtCore.QDate()
+        )
+        end_date = (
+            QtCore.QDate.fromString(self._rental.end_date, "yyyy-MM-dd")
+            if self._rental.end_date
+            else QtCore.QDate()
+        )
         if event_date.isValid():
             self.event_date_input.setDate(event_date)
         if start_date.isValid():
             self.start_date_input.setDate(start_date)
         if end_date.isValid():
             self.end_date_input.setDate(end_date)
+        self.phone_input.setText(self._rental.contact_phone or "")
+        self.delivery_checkbox.setChecked(bool(self._rental.delivery_required))
         self.address_input.setPlainText(self._rental.address or "")
         self._render_items_table()
         self._update_total_label()
-        self._sync_end_date_min(self.start_date_input.date())
-        self._update_duration_label()
+        self._toggle_rental_dates()
+        if self.start_date_input.isVisible():
+            self._sync_end_date_min(self.start_date_input.date())
+            self._update_duration_label()
+        self._apply_delivery_state()
 
     def _on_product_selected(self) -> None:
         self._apply_selected_product_price()
@@ -914,7 +983,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         if not product or product.id is None:
             _show_warning(self, "Selecione um item para adicionar.")
             return
-        if not self._validate_dates():
+        if not self._validate_dates(selected_kind=product.kind):
             return
         qty = int(self.qty_input.value())
         unit_price = float(self.unit_price_input.value())
@@ -927,6 +996,7 @@ class RentalEditDialog(QtWidgets.QDialog):
         updated_items = self._prepare_updated_items(
             product_id=product.id,
             product_name=product.name,
+            product_kind=product.kind,
             qty=qty,
             unit_price=unit_price,
         )
@@ -938,9 +1008,15 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.qty_input.setValue(1)
         self._render_items_table()
         self._update_total_label()
+        self._toggle_rental_dates()
 
     def _prepare_updated_items(
-        self, product_id: int, product_name: str, qty: int, unit_price: float
+        self,
+        product_id: int,
+        product_name: str,
+        product_kind: ProductKind,
+        qty: int,
+        unit_price: float,
     ) -> List[RentalItemDraft]:
         items = list(self._items)
         if self._editing_index is None:
@@ -949,14 +1025,19 @@ class RentalEditDialog(QtWidgets.QDialog):
                     item.qty += qty
                     item.unit_price = unit_price
                     return items
-            items.append(RentalItemDraft(product_id, product_name, qty, unit_price))
+            items.append(
+                RentalItemDraft(product_id, product_name, product_kind, qty, unit_price)
+            )
             return items
         if self._editing_index < 0 or self._editing_index >= len(items):
-            items.append(RentalItemDraft(product_id, product_name, qty, unit_price))
+            items.append(
+                RentalItemDraft(product_id, product_name, product_kind, qty, unit_price)
+            )
             return items
         existing = items[self._editing_index]
         existing.product_id = product_id
         existing.product_name = product_name
+        existing.product_kind = product_kind
         existing.qty = qty
         existing.unit_price = unit_price
         for index, item in enumerate(items):
@@ -1017,16 +1098,19 @@ class RentalEditDialog(QtWidgets.QDialog):
         self.add_item_button.setText("Adicionar item")
         self._render_items_table()
         self._update_total_label()
+        self._toggle_rental_dates()
 
     def _update_total_label(self) -> None:
         total = sum(item.line_total for item in self._items)
         self.total_label.setText(f"Total: {_format_currency(total)}")
 
-    def _get_dates(self) -> tuple[date, date, date]:
+    def _get_dates(self) -> tuple[date, Optional[date], Optional[date]]:
         event_date = self.event_date_input.date().toPython()
-        start_date = self.start_date_input.date().toPython()
-        end_date = self.end_date_input.date().toPython()
-        return event_date, start_date, end_date
+        if self._requires_rental_dates():
+            start_date = self.start_date_input.date().toPython()
+            end_date = self.end_date_input.date().toPython()
+            return event_date, start_date, end_date
+        return event_date, None, None
 
     def _ensure_end_date_after_start(self) -> None:
         start_date = self.start_date_input.date()
@@ -1035,6 +1119,9 @@ class RentalEditDialog(QtWidgets.QDialog):
             self.end_date_input.setDate(start_date.addDays(1))
 
     def _update_duration_label(self) -> None:
+        if not self._requires_rental_dates():
+            self.duration_label.setText("")
+            return
         start_date = self.start_date_input.date()
         end_date = self.end_date_input.date()
         duration_days = max(1, start_date.daysTo(end_date))
@@ -1049,6 +1136,8 @@ class RentalEditDialog(QtWidgets.QDialog):
         self._update_duration_label()
 
     def _on_dates_changed(self) -> None:
+        if not self._requires_rental_dates():
+            return
         self._ensure_end_date_after_start()
         self._update_duration_label()
         if not self._items:
@@ -1057,8 +1146,16 @@ class RentalEditDialog(QtWidgets.QDialog):
             return
         self._validate_inventory(self._items)
 
-    def _validate_dates(self) -> bool:
-        _event_date, start_date, end_date = self._get_dates()
+    def _requires_rental_dates(self, selected_kind: Optional[ProductKind] = None) -> bool:
+        if selected_kind == ProductKind.RENTAL:
+            return True
+        return any(item.product_kind == ProductKind.RENTAL for item in self._items)
+
+    def _validate_dates(self, selected_kind: Optional[ProductKind] = None) -> bool:
+        if not self._requires_rental_dates(selected_kind):
+            return True
+        start_date = self.start_date_input.date().toPython()
+        end_date = self.end_date_input.date().toPython()
         if start_date >= end_date:
             _show_warning(
                 self, "A data de término deve ser posterior à data de início."
@@ -1072,40 +1169,48 @@ class RentalEditDialog(QtWidgets.QDialog):
             return False
         if not self._validate_dates():
             return False
+        if self.delivery_checkbox.isChecked() and not self.address_input.toPlainText().strip():
+            _show_warning(self, "Informe o endereço de entrega.")
+            return False
         if not self._items:
             _show_warning(self, "Adicione ao menos um item ao pedido.")
             return False
         return True
 
     def _validate_inventory(self, items: List[RentalItemDraft]) -> bool:
-        _event_date, start_date, end_date = self._get_dates()
-        aggregated = self._aggregate_items(items)
         try:
-            self._services.inventory_service.validate_rental_availability(
-                self._rental_id,
-                aggregated,
-                start_date.isoformat(),
-                end_date.isoformat(),
+            requires_rental = any(
+                item.product_kind == ProductKind.RENTAL for item in items
+            )
+            start_date = (
+                self.start_date_input.date().toPython() if requires_rental else None
+            )
+            end_date = self.end_date_input.date().toPython() if requires_rental else None
+            self._services.order_service.validate_availability(
+                self._build_items_payload(items),
+                start_date=start_date.isoformat() if start_date else None,
+                end_date=end_date.isoformat() if end_date else None,
+                exclude_rental_id=self._rental_id,
             )
         except ValueError as exc:
             _show_warning(self, str(exc))
             return False
+        except ValidationError as exc:
+            _show_warning(self, str(exc))
+            return False
         return True
 
-    def _aggregate_items(self, items: List[RentalItemDraft]) -> List[tuple[int, int]]:
-        aggregated: dict[int, int] = {}
-        for item in items:
-            aggregated[item.product_id] = aggregated.get(item.product_id, 0) + item.qty
-        return list(aggregated.items())
-
-    def _build_items_payload(self) -> List[dict[str, object]]:
+    def _build_items_payload(
+        self, items: Optional[List[RentalItemDraft]] = None
+    ) -> List[dict[str, object]]:
+        source_items = items if items is not None else self._items
         return [
             {
                 "product_id": item.product_id,
                 "qty": item.qty,
                 "unit_price": item.unit_price,
             }
-            for item in self._items
+            for item in source_items
         ]
 
     def _on_save(self) -> None:
@@ -1126,9 +1231,11 @@ class RentalEditDialog(QtWidgets.QDialog):
                 rental_id=self._rental_id,
                 customer_id=customer_id,
                 event_date=event_date.isoformat(),
-                start_date=start_date.isoformat(),
-                end_date=end_date.isoformat(),
+                start_date=start_date.isoformat() if start_date else None,
+                end_date=end_date.isoformat() if end_date else None,
                 address=self.address_input.toPlainText().strip() or None,
+                contact_phone=self.phone_input.text().strip() or None,
+                delivery_required=self.delivery_checkbox.isChecked(),
                 items=items_payload,
                 total_value=total_value,
                 status=self._rental.status,

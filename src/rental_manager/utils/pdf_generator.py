@@ -21,7 +21,9 @@ def _format_currency(value: float) -> str:
     return f"R$ {formatted.replace(',', 'X').replace('.', ',').replace('X', '.')}"
 
 
-def _format_date(value: str) -> str:
+def _format_date(value: str | None) -> str:
+    if not value:
+        return "—"
     try:
         return datetime.strptime(value, "%Y-%m-%d").strftime("%d/%m/%Y")
     except ValueError:
@@ -82,19 +84,21 @@ def generate_rental_pdf(
     elements.append(Paragraph("<br/>".join(issuer_lines), styles["Normal"]))
     elements.append(Spacer(1, 10))
 
+    contact_phone = rental.contact_phone or customer.phone
     customer_lines = [
         "<b>Cliente</b>",
         f"Nome: {customer.name}",
-        f"Telefone: {customer.phone or '—'}",
+        f"Telefone: {contact_phone or '—'}",
     ]
     elements.append(Paragraph("<br/>".join(customer_lines), styles["Normal"]))
     elements.append(Spacer(1, 10))
 
     dates_table = Table(
         [
-            ["Data do evento", _format_date(rental.event_date)],
+            ["Data do pedido", _format_date(rental.event_date)],
             ["Retirada/Entrega", _format_date(rental.start_date)],
             ["Devolução", _format_date(rental.end_date)],
+            ["Entrega", "Sim" if rental.delivery_required else "Retirada"],
             ["Endereço", rental.address or "—"],
         ],
         colWidths=[40 * mm, 120 * mm],
@@ -137,7 +141,7 @@ def generate_rental_pdf(
             ]
         )
     )
-    elements.append(Paragraph("Itens locados", styles["SectionTitle"]))
+    elements.append(Paragraph("Itens do pedido", styles["SectionTitle"]))
     elements.append(items_table)
     elements.append(Spacer(1, 12))
 

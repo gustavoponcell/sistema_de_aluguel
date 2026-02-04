@@ -25,11 +25,11 @@ def _row_value(row: sqlite3.Row, key: str) -> Any:
 
 
 def product_from_row(row: sqlite3.Row) -> Product:
-    raw_kind = _row_value(row, "kind") or ProductKind.PRODUCT.value
+    raw_kind = _row_value(row, "kind") or ProductKind.RENTAL.value
     try:
         kind = ProductKind(raw_kind)
     except ValueError:
-        kind = ProductKind.PRODUCT
+        kind = ProductKind.RENTAL
     return Product(
         id=_row_value(row, "id"),
         name=row["name"],
@@ -84,9 +84,11 @@ def rental_from_row(row: sqlite3.Row) -> Rental:
         id=_row_value(row, "id"),
         customer_id=row["customer_id"],
         event_date=row["event_date"],
-        start_date=row["start_date"],
-        end_date=row["end_date"],
+        start_date=_row_value(row, "start_date"),
+        end_date=_row_value(row, "end_date"),
         address=_row_value(row, "address"),
+        contact_phone=_row_value(row, "contact_phone"),
+        delivery_required=bool(_row_value(row, "delivery_required") or 0),
         status=RentalStatus(row["status"]),
         total_value=row["total_value"],
         paid_value=row["paid_value"],
@@ -104,6 +106,8 @@ def rental_to_record(rental: Rental) -> Dict[str, Any]:
         "start_date": rental.start_date,
         "end_date": rental.end_date,
         "address": rental.address,
+        "contact_phone": rental.contact_phone,
+        "delivery_required": int(rental.delivery_required),
         "status": rental.status.value,
         "total_value": rental.total_value,
         "paid_value": rental.paid_value,

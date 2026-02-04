@@ -290,6 +290,122 @@ MIGRATIONS: list[Migration] = [
             ON expenses(category);
         """,
     ),
+    Migration(
+        version=8,
+        requires_foreign_keys_off=True,
+        script="""
+        CREATE TABLE products_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            category TEXT,
+            total_qty INTEGER NOT NULL DEFAULT 0 CHECK (total_qty >= 0),
+            unit_price REAL CHECK (unit_price IS NULL OR unit_price >= 0),
+            kind TEXT NOT NULL DEFAULT 'rental' CHECK (kind IN ('rental', 'sale', 'service')),
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT
+        );
+
+        INSERT INTO products_new (
+            id,
+            name,
+            category,
+            total_qty,
+            unit_price,
+            kind,
+            active,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            name,
+            category,
+            total_qty,
+            unit_price,
+            CASE
+                WHEN kind = 'service' THEN 'service'
+                WHEN kind = 'sale' THEN 'sale'
+                ELSE 'rental'
+            END,
+            active,
+            created_at,
+            updated_at
+        FROM products;
+
+        DROP TABLE products;
+        ALTER TABLE products_new RENAME TO products;
+
+        CREATE TABLE rentals_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL,
+            event_date TEXT NOT NULL,
+            start_date TEXT,
+            end_date TEXT,
+            address TEXT,
+            contact_phone TEXT,
+            delivery_required INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL CHECK (status IN ('draft', 'confirmed', 'canceled', 'completed')),
+            total_value REAL NOT NULL DEFAULT 0 CHECK (total_value >= 0),
+            paid_value REAL NOT NULL DEFAULT 0 CHECK (paid_value >= 0),
+            payment_status TEXT NOT NULL,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (customer_id) REFERENCES customers(id),
+            CHECK (start_date IS NULL OR end_date IS NULL OR end_date >= start_date)
+        );
+
+        INSERT INTO rentals_new (
+            id,
+            customer_id,
+            event_date,
+            start_date,
+            end_date,
+            address,
+            contact_phone,
+            delivery_required,
+            status,
+            total_value,
+            paid_value,
+            payment_status,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            customer_id,
+            event_date,
+            start_date,
+            end_date,
+            address,
+            NULL,
+            CASE
+                WHEN address IS NULL OR address = '' THEN 0
+                ELSE 1
+            END,
+            status,
+            total_value,
+            paid_value,
+            payment_status,
+            created_at,
+            updated_at
+        FROM rentals;
+
+        DROP TABLE rentals;
+        ALTER TABLE rentals_new RENAME TO rentals;
+
+        CREATE INDEX IF NOT EXISTS idx_rentals_event_date
+            ON rentals(event_date);
+        CREATE INDEX IF NOT EXISTS idx_rentals_start_date
+            ON rentals(start_date);
+        CREATE INDEX IF NOT EXISTS idx_rentals_end_date
+            ON rentals(end_date);
+        CREATE INDEX IF NOT EXISTS idx_rentals_status
+            ON rentals(status);
+        CREATE INDEX IF NOT EXISTS idx_rentals_created_at
+            ON rentals(created_at);
+        """,
+    ),
 ]
 
 

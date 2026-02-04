@@ -45,7 +45,8 @@ class ProductDialog(QtWidgets.QDialog):
         self.name_input = QtWidgets.QLineEdit()
         self.category_input = QtWidgets.QLineEdit()
         self.kind_input = QtWidgets.QComboBox()
-        self.kind_input.addItem("Produto (físico)", ProductKind.PRODUCT)
+        self.kind_input.addItem("Aluguel", ProductKind.RENTAL)
+        self.kind_input.addItem("Venda", ProductKind.SALE)
         self.kind_input.addItem("Serviço", ProductKind.SERVICE)
         self.kind_input.currentIndexChanged.connect(self._on_kind_changed)
         self.total_qty_input = QtWidgets.QSpinBox()
@@ -86,11 +87,12 @@ class ProductDialog(QtWidgets.QDialog):
         self.category_input.setText(product.category or "")
         self.total_qty_input.setValue(product.total_qty)
         self.unit_price_input.setValue(product.unit_price or 0.0)
-        index = (
-            1
-            if product.kind == ProductKind.SERVICE
-            else 0
-        )
+        if product.kind == ProductKind.SERVICE:
+            index = 2
+        elif product.kind == ProductKind.SALE:
+            index = 1
+        else:
+            index = 0
         self.kind_input.setCurrentIndex(index)
         self._on_kind_changed()
 
@@ -127,7 +129,7 @@ class ProductDialog(QtWidgets.QDialog):
             )
             return False
         kind = self.kind_input.currentData()
-        if kind == ProductKind.PRODUCT and self.total_qty_input.value() <= 0:
+        if kind in (ProductKind.RENTAL, ProductKind.SALE) and self.total_qty_input.value() <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
                 TITLE_WARNING,
@@ -266,12 +268,22 @@ class ProductsScreen(BaseScreen):
         self.table.setRowCount(len(products))
         for row, product in enumerate(products):
             is_service = product.kind == ProductKind.SERVICE
-            reserved_qty = self._services.inventory_service.on_loan(
-                product.id or 0, reference_date
-            )
-            available_qty = self._services.inventory_service.available(
-                product.id or 0, reference_date
-            )
+            is_sale = product.kind == ProductKind.SALE
+            if is_service:
+                reserved_qty = None
+                available_qty = None
+            elif is_sale:
+                reserved_qty = None
+                available_qty = self._services.inventory_service.get_sale_available_qty(
+                    product.id or 0
+                )
+            else:
+                reserved_qty = self._services.inventory_service.on_loan(
+                    product.id or 0, reference_date
+                )
+                available_qty = self._services.inventory_service.available(
+                    product.id or 0, reference_date
+                )
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(product.name))
             self.table.setItem(
                 row, 1, QtWidgets.QTableWidgetItem(product_kind_label(product.kind))
@@ -280,18 +292,22 @@ class ProductsScreen(BaseScreen):
                 row,
                 2,
                 QtWidgets.QTableWidgetItem(
-                    "Ilimitado" if is_service else str(product.total_qty)
+                    "—" if is_service else str(product.total_qty)
                 ),
             )
             self.table.setItem(
                 row,
                 3,
-                QtWidgets.QTableWidgetItem("—" if is_service else str(reserved_qty)),
+                QtWidgets.QTableWidgetItem("—" if reserved_qty is None else str(reserved_qty)),
             )
             self.table.setItem(
                 row,
                 4,
-                QtWidgets.QTableWidgetItem("—" if is_service else str(available_qty)),
+                QtWidgets.QTableWidgetItem(
+                    "Sem controle de estoque"
+                    if is_service
+                    else str(available_qty)
+                ),
             )
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
