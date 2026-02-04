@@ -2,12 +2,15 @@
 
 from rental_manager.repositories.customer_repo import CustomerRepo
 from rental_manager.repositories.document_repo import DocumentRepository
+from rental_manager.repositories.expense_repo import ExpenseRepo
 from rental_manager.repositories.mappers import (
     customer_from_row,
     customer_to_record,
     document_from_row,
     payment_from_row,
     payment_to_record,
+    expense_from_row,
+    expense_to_record,
     product_from_row,
     product_to_record,
     rental_from_row,
@@ -24,6 +27,9 @@ __all__ = [
     "customer_to_record",
     "document_from_row",
     "DocumentRepository",
+    "ExpenseRepo",
+    "expense_from_row",
+    "expense_to_record",
     "payment_from_row",
     "payment_to_record",
     "PaymentRepository",

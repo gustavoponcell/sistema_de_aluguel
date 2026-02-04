@@ -9,6 +9,7 @@ from rental_manager.domain.models import (
     Customer,
     Document,
     DocumentType,
+    Expense,
     Payment,
     PaymentStatus,
     Product,
@@ -157,6 +158,34 @@ def payment_to_record(payment: Payment) -> Dict[str, Any]:
         "method": payment.method,
         "paid_at": payment.paid_at,
         "note": payment.note,
+    }
+
+
+def expense_from_row(row: sqlite3.Row) -> Expense:
+    return Expense(
+        id=_row_value(row, "id"),
+        created_at=_row_value(row, "created_at"),
+        date=row["date"],
+        category=_row_value(row, "category"),
+        description=_row_value(row, "description"),
+        amount=row["amount"],
+        payment_method=_row_value(row, "payment_method"),
+        supplier=_row_value(row, "supplier"),
+        notes=_row_value(row, "notes"),
+    )
+
+
+def expense_to_record(expense: Expense) -> Dict[str, Any]:
+    return {
+        "id": expense.id,
+        "created_at": expense.created_at,
+        "date": expense.date,
+        "category": expense.category,
+        "description": expense.description,
+        "amount": expense.amount,
+        "payment_method": expense.payment_method,
+        "supplier": expense.supplier,
+        "notes": expense.notes,
     }
 
 
