@@ -406,6 +406,61 @@ MIGRATIONS: list[Migration] = [
             ON rentals(created_at);
         """,
     ),
+    Migration(
+        version=9,
+        requires_foreign_keys_off=True,
+        script="""
+        CREATE TABLE documents_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('contract', 'invoice', 'receipt')),
+            customer_name TEXT NOT NULL,
+            reference_date TEXT,
+            file_name TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            order_id INTEGER,
+            notes TEXT,
+            FOREIGN KEY (order_id) REFERENCES rentals(id)
+        );
+
+        INSERT INTO documents_new (
+            id,
+            created_at,
+            type,
+            customer_name,
+            reference_date,
+            file_name,
+            file_path,
+            order_id,
+            notes
+        )
+        SELECT
+            id,
+            generated_at,
+            doc_type,
+            COALESCE(customers.name, 'Cliente desconhecido'),
+            rentals.event_date,
+            file_path,
+            file_path,
+            rental_id,
+            NULL
+        FROM documents
+        LEFT JOIN rentals ON rentals.id = documents.rental_id
+        LEFT JOIN customers ON customers.id = rentals.customer_id;
+
+        DROP TABLE documents;
+        ALTER TABLE documents_new RENAME TO documents;
+
+        CREATE INDEX IF NOT EXISTS idx_documents_type
+            ON documents(type);
+        CREATE INDEX IF NOT EXISTS idx_documents_reference_date
+            ON documents(reference_date);
+        CREATE INDEX IF NOT EXISTS idx_documents_customer_name
+            ON documents(customer_name);
+        CREATE INDEX IF NOT EXISTS idx_documents_order_id
+            ON documents(order_id);
+        """,
+    ),
 ]
 
 

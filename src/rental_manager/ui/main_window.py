@@ -9,6 +9,7 @@ from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens import (
     BackupScreen,
     CustomersScreen,
+    DocumentsScreen,
     FinanceScreen,
     NewRentalScreen,
     ProductsScreen,
@@ -77,6 +78,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ("Estoque", ProductsScreen(self._services)),
             ("Clientes", CustomersScreen(self._services)),
             ("Financeiro", self._finance_screen),
+            ("Documentos", DocumentsScreen(self._services)),
             ("Backup", BackupScreen(self._services)),
         ]
 
