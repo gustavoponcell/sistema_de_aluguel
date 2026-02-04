@@ -9,7 +9,13 @@ from datetime import datetime
 from typing import Iterable, Optional
 
 from rental_manager.db.connection import get_connection, transaction
-from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, RentalStatus
+from rental_manager.domain.models import (
+    PaymentStatus,
+    ProductKind,
+    Rental,
+    RentalItem,
+    RentalStatus,
+)
 from rental_manager.logging_config import get_logger
 from rental_manager.paths import get_db_path
 from rental_manager.repositories.mappers import rental_from_row, rental_item_from_row
@@ -779,10 +785,17 @@ def list_rentals(
     clauses: list[str] = []
     params: list[object] = []
     if start_date:
-        clauses.append("r.event_date >= ?")
-        params.append(start_date)
-    if end_date:
-        clauses.append("r.event_date <= ?")
+        if end_date:
+            clauses.append(
+                "COALESCE(r.start_date, r.event_date) <= ? "
+                "AND COALESCE(r.end_date, r.event_date) >= ?"
+            )
+            params.extend([end_date, start_date])
+        else:
+            clauses.append("COALESCE(r.end_date, r.event_date) >= ?")
+            params.append(start_date)
+    elif end_date:
+        clauses.append("COALESCE(r.start_date, r.event_date) <= ?")
         params.append(end_date)
     if status:
         clauses.append("r.status = ?")
@@ -804,7 +817,7 @@ def list_rentals(
         FROM rentals r
         JOIN customers c ON c.id = r.customer_id
         {where_clause}
-        ORDER BY r.event_date, r.start_date, r.id
+        ORDER BY COALESCE(r.start_date, r.event_date), r.event_date, r.id
     """
     try:
         with _optional_connection(connection) as conn:
@@ -813,6 +826,53 @@ def list_rentals(
         logger.exception("Failed to list rentals")
         raise
     return [rental_from_row(row) for row in rows]
+
+
+def list_rental_kinds(
+    rental_ids: Iterable[int],
+    *,
+    connection: Optional[sqlite3.Connection] = None,
+) -> dict[int, ProductKind]:
+    """Return the primary kind for each rental based on its items."""
+    ids = sorted({int(rental_id) for rental_id in rental_ids if rental_id})
+    if not ids:
+        return {}
+    placeholders = ", ".join(["?"] * len(ids))
+    logger = get_logger("rental_repo")
+    try:
+        with _optional_connection(connection) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT ri.rental_id, p.kind
+                FROM rental_items ri
+                JOIN products p ON p.id = ri.product_id
+                WHERE ri.rental_id IN ({placeholders})
+                """,
+                ids,
+            ).fetchall()
+    except Exception:
+        logger.exception("Failed to list rental kinds")
+        raise
+    kind_map: dict[int, set[ProductKind]] = {}
+    for row in rows:
+        raw_kind = row["kind"] if "kind" in row.keys() else ProductKind.RENTAL.value
+        try:
+            kind = ProductKind(raw_kind)
+        except ValueError:
+            kind = ProductKind.RENTAL
+        rental_id = int(row["rental_id"])
+        kind_map.setdefault(rental_id, set()).add(kind)
+    result: dict[int, ProductKind] = {}
+    for rental_id, kinds in kind_map.items():
+        if ProductKind.RENTAL in kinds:
+            result[rental_id] = ProductKind.RENTAL
+        elif ProductKind.SERVICE in kinds:
+            result[rental_id] = ProductKind.SERVICE
+        elif ProductKind.SALE in kinds:
+            result[rental_id] = ProductKind.SALE
+        else:
+            result[rental_id] = ProductKind.RENTAL
+    return result
 
 
 def get_rental_with_items(
