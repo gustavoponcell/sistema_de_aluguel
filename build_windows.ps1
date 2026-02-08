@@ -13,7 +13,7 @@ if (-not (Test-Path $python)) {
 
 & $python -m pip install -r requirements.txt
 
-$iconPath = Join-Path $projectRoot "assets\\icon.ico"
+$iconPath = Join-Path $projectRoot "assets\\app.ico"
 $versionFile = Join-Path $projectRoot "tools\\windows_version_info.txt"
 $appVersionFile = Join-Path $projectRoot "src\\rental_manager\\version.py"
 $entrypoint = Join-Path $projectRoot "src\\rental_manager\\__main__.py"
@@ -57,7 +57,7 @@ Set-Content -Path $versionFile -Value $versionInfo -Encoding UTF8
 & $python -m PyInstaller `
   --noconsole `
   --name GestaoInteligente `
-  --icon assets/icon.ico `
+  --icon assets/app.ico `
   --version-file tools/windows_version_info.txt `
   --add-data "assets;assets" `
   --paths "src" `

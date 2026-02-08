@@ -17,5 +17,5 @@ O instalador gerado ficará em `dist_installer\` com o nome:
 
 ## Observações
 - O instalador **não remove** dados em `%APPDATA%\RentalManager\`.
-- O ícone usado é `assets/icon.ico`.
+- O ícone usado é `assets/app.ico`.
 - A versão é lida automaticamente de `src/rental_manager/version.py`.
