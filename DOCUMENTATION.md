@@ -41,6 +41,7 @@
 
 - **Pedido**: registro completo de uma locação, com cliente, datas, itens e pagamento.
 - **Produto**: item físico controlado por estoque (ex.: mesas, cadeiras).
+- **Venda**: item vendido com baixa definitiva de estoque.
 - **Serviço**: mão de obra ou serviço agregado (ex.: montagem, entrega). Não bloqueia estoque.
 - **Disponível**: quantidade livre para novas datas.
 - **Em uso**: quantidade já alocada em pedidos no período.
@@ -198,7 +199,7 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 - `category` (TEXT)
 - `total_qty` (INTEGER)
 - `unit_price` (REAL)
-- `kind` (TEXT: `product` ou `service`)
+- `kind` (TEXT: `rental`, `sale`, `service`)
 - `active` (INTEGER 0/1)
 - `created_at`, `updated_at`
 
@@ -213,9 +214,11 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 - `id` (PK)
 - `customer_id` (FK → customers.id)
 - `event_date` (TEXT)
-- `start_date` (TEXT)
-- `end_date` (TEXT)
+- `start_date` (TEXT, opcional)
+- `end_date` (TEXT, opcional)
 - `address` (TEXT)
+- `contact_phone` (TEXT)
+- `delivery_required` (INTEGER 0/1)
 - `status` (TEXT)
 - `total_value` (REAL)
 - `paid_value` (REAL)
@@ -241,11 +244,25 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 
 #### `documents`
 - `id` (PK)
-- `rental_id` (FK → rentals.id)
-- `doc_type` (TEXT: `contract` ou `receipt`)
+- `created_at` (TEXT ISO)
+- `type` (TEXT: `contract`, `invoice`, `receipt`)
+- `customer_name` (TEXT)
+- `reference_date` (TEXT ISO)
+- `file_name` (TEXT)
 - `file_path` (TEXT)
-- `generated_at` (TEXT ISO)
-- `checksum` (TEXT SHA256)
+- `order_id` (FK → rentals.id, opcional)
+- `notes` (TEXT)
+
+#### `expenses`
+- `id` (PK)
+- `created_at` (TEXT ISO)
+- `date` (TEXT ISO)
+- `category` (TEXT)
+- `description` (TEXT)
+- `amount` (REAL)
+- `payment_method` (TEXT)
+- `supplier` (TEXT)
+- `notes` (TEXT)
 
 > Pagamentos ficam registrados em `payments` e o campo `rentals.paid_value` é derivado da soma dos pagamentos.
 
@@ -257,6 +274,12 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 - `idx_rentals_created_at`
 - `idx_rental_items_rental_id`
 - `idx_rental_items_product_id`
+- `idx_expenses_date`
+- `idx_expenses_category`
+- `idx_documents_type`
+- `idx_documents_reference_date`
+- `idx_documents_customer_name`
+- `idx_documents_order_id`
 
 ### 5.5 Constraints e integridade
 - **Foreign Keys** habilitadas (`PRAGMA foreign_keys = ON`).
@@ -266,7 +289,8 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
   - `rental_items.qty > 0`.
   - `rentals.total_value >= 0` e `rentals.paid_value >= 0`.
   - `payments.amount > 0`.
-  - `rentals.end_date > rentals.start_date`.
+  - `expenses.amount > 0`.
+  - `rentals.end_date >= rentals.start_date` (quando ambas existem).
   - `rentals.status` limitado aos valores reais do app (`draft`, `confirmed`, `canceled`, `completed`).
 
 ---
@@ -280,8 +304,9 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 - `completed` → **Concluído**
 
 **Impacto no estoque**
-- Apenas **confirmed** e **completed** bloqueiam estoque.
-- **draft** e **canceled** não bloqueiam.
+- **Itens de aluguel** bloqueiam estoque quando o pedido está em `draft` ou `confirmed`.
+- **Itens de venda** validam estoque enquanto o pedido está em `draft` ou `confirmed` e **baixam** o estoque ao concluir (`completed`).
+- **Itens de serviço** não bloqueiam estoque.
 
 ### 6.2 Pagamento
 - `unpaid` → **Pendente**
@@ -298,10 +323,12 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 
 ### 6.3 Cálculo financeiro
 **Relatório financeiro por período**:
-- A lista de pedidos usa `event_date` como referência do período.
+- A lista de pedidos usa `start_date` quando houver, senão `event_date`.
 - **Total recebido**: soma dos pagamentos em `payments` cujo `paid_at` está dentro do período.
   - Pagamentos sem `paid_at` não entram no total recebido do período.
 - **Total a receber**: soma de `(total_value - paid_total)` **apenas para pedidos `confirmed`** no período.
+- **Total de despesas**: soma de `expenses.amount` no período filtrado.
+- **Saldo**: `total_recebido - total_despesas`.
 - Pedidos com status `canceled` **não entram** no relatório.
 
 ### 6.4 Estoque por data (crítico)
@@ -309,6 +336,11 @@ No menu **Ajuda > Verificar atualizações** o app consulta o GitHub Releases.
 **Definição de “em uso” vs “disponível”**
 - **Em uso** = quantidade reservada em pedidos que bloqueiam estoque.
 - **Disponível** = `total_qty - reservado` (não pode ser negativo).
+
+**Tipos de item**
+- **Aluguel (`rental`)**: exige período (`start_date` e `end_date`) e bloqueia estoque dia a dia.
+- **Venda (`sale`)**: usa data única (`event_date`), valida estoque atual e baixa o estoque ao concluir.
+- **Serviço (`service`)**: não bloqueia estoque (apenas registra o item no pedido).
 
 **Regra de ocupação por intervalo**
 - Um pedido bloqueia estoque no intervalo:
@@ -325,8 +357,8 @@ start_date <= D < end_date
 - Pedido B: início 12/05, fim 13/05 → **permitido** (não há sobreposição).
 
 **Quais status bloqueiam estoque**
-- `draft` (Rascunho), `confirmed` (Confirmado) e `completed` (Concluído), que são os
-  status reais do app.
+- `draft` (Rascunho) e `confirmed` (Confirmado), que são os status que bloqueiam
+  estoque para itens de aluguel.
 
 **Validação ao criar/editar pedido**
 - Para cada item e cada dia do intervalo, verifica se há quantidade disponível.
@@ -341,6 +373,9 @@ start_date <= D < end_date
 - Usado:
   - Na **Agenda** (resumo de endereço).
   - No **PDF** (contrato/recibo).
+- O pedido possui o toggle **Entrega**:
+  - **Entrega**: endereço obrigatório.
+  - **Retirada pelo cliente**: endereço opcional.
 
 ---
 
@@ -352,8 +387,9 @@ start_date <= D < end_date
 
 **Componentes**
 - Seletor de cliente (combo + botão “Novo Cliente”).
-- Datas: evento, início, fim.
-- Campo de endereço.
+- Datas: evento (sempre) e período (início/fim) quando há itens de aluguel.
+- Toggle de **Entrega** (endereço obrigatório) ou **Retirada pelo cliente**.
+- Campo de endereço (habilitado apenas quando entrega estiver marcada).
 - Lista de itens com item, quantidade, preço unitário.
 - Tabela de itens e total.
 - Botões: “Salvar como rascunho”, “Confirmar pedido”.
@@ -365,9 +401,9 @@ start_date <= D < end_date
 
 **Validações e mensagens**
 - Cliente obrigatório.
-- Data de término deve ser **após** data de início.
+- Data de término deve ser **após** data de início quando houver itens de aluguel.
 - Pelo menos 1 item.
-- Estoque validado dia a dia.
+- Estoque validado dia a dia para itens de aluguel e estoque atual para itens de venda.
 
 **Exemplo de uso (fictício)**
 - Cliente: “João Silva”
@@ -419,9 +455,10 @@ start_date <= D < end_date
 - Botões: novo, editar, desativar.
 
 **Ações e comportamento**
-- “Em uso” é a soma das reservas de pedidos em rascunho/confirmados/concluídos na data.
+- “Em uso” é a soma das reservas de pedidos em rascunho/confirmados na data.
 - “Disponível” = `total_qty - em_uso`.
-- Serviços são cadastrados com capacidade alta e não bloqueiam estoque.
+- Itens de **venda** exibem o estoque atual (sem reserva por período).
+- Serviços aparecem com “Sem controle de estoque”.
 
 **Validações**
 - Nome e categoria obrigatórios.
@@ -448,20 +485,22 @@ start_date <= D < end_date
 - Ver resumo financeiro por período.
 
 **Componentes**
-- Filtro por data (período baseado em `rentals.start_date`).
-- Abas: **Resumo**, **Gráficos** e **Relatórios**.
-- Cards: total recebido, total a receber, quantidade de pedidos.
+- Filtro por data (período baseado em `start_date` quando existir, senão `event_date`).
+- Abas: **Resumo**, **Despesas**, **Gráficos** e **Relatórios**.
+- Cards: total recebido, total a receber, despesas no período, quantidade de pedidos, saldo.
 - Gráficos e rankings (offline) ficam na aba **Gráficos**.
 - Tabela com pedidos do período + botão de exportação CSV nos relatórios.
 
 **Regras**
-- **Base temporal**: o período da tela usa `rentals.start_date` (datas ISO `YYYY-MM-DD`).
-- **Receita prevista por mês**: soma `rentals.total_value` agrupado por mês de `start_date`.
-- **Pedidos por mês**: contagem por mês de `start_date`.
+- **Base temporal**: o período da tela usa `start_date` quando existir, senão `event_date` (datas ISO `YYYY-MM-DD`).
+- **Receita prevista por mês**: soma `rentals.total_value` agrupado por mês de `COALESCE(start_date, event_date)`.
+- **Pedidos por mês**: contagem por mês de `COALESCE(start_date, event_date)`.
 - **Recebido**:
   - Se a tabela `payments` existir: soma `payments.amount` por `paid_at` no período.
-  - Se não existir: usa `rentals.paid_value` do período (agrupado por `start_date`).
-- **A receber**: soma de `(total_value - paid_value)` para pedidos confirmados, por mês de `start_date`.
+  - Se não existir: usa `rentals.paid_value` do período (agrupado por `COALESCE(start_date, event_date)`).
+- **A receber**: soma de `(total_value - paid_value)` para pedidos confirmados, por mês de `COALESCE(start_date, event_date)`.
+- **Despesas**: soma de `expenses.amount` no período filtrado.
+- **Saldo**: total recebido menos despesas.
 - **Ranking de produtos (quantidade)**: soma `rental_items.qty` por produto no período.
 - **Ranking de produtos (receita)**:
   - Usa `rental_items.unit_price` quando disponível.
@@ -498,26 +537,28 @@ start_date <= D < end_date
 
 ---
 
-## 8) Recibo/Contrato (PDF)
+## 8) Documentos (Contratos / Notas / Recibos)
 
 **Onde gera**
 - Na tela **Agenda**, botões **“Gerar contrato”** e **“Gerar recibo”**.
+- A tela **Documentos** centraliza todos os arquivos gerados.
 
 **O que contém**
 - Dados do locador (configurados em `config.py`).
 - Dados do cliente (nome e telefone).
 - Datas do pedido e endereço.
-- Itens locados, valores e saldo.
+- Itens, valores e saldo.
 - Termos e campo para assinatura.
 
 **Onde é salvo**
-- `%APPDATA%\RentalManager\pdfs`.
-- Nome do arquivo: `pedido_<ID>_<timestamp>_contract.pdf` ou `_receipt.pdf`.
+- Na **primeira geração**, o app pergunta a pasta padrão (salva em `%APPDATA%\RentalManager\config.json`).
+- É possível escolher **“Salvar como…”** para outro local na geração.
+- Nome do arquivo: `NOME_CLIENTE_DATA_TIPO.pdf` (ex.: `Joao_Silva_2026-02-03_Contrato.pdf`).
 
 **Como reemitir / abrir o último**
 - Use os botões **“Abrir último contrato”** e **“Abrir último recibo”** no pedido selecionado.
 - Se não houver documento gerado, os botões ficam desabilitados com dica de motivo.
-- Ao regerar, o arquivo é atualizado na pasta `pdfs` e o sistema registra o novo caminho e checksum.
+- A tela **Documentos** permite **Abrir** e **Mostrar na pasta**.
 
 **Observações**
 - O PDF é **gerado com ReportLab**.
@@ -554,7 +595,7 @@ start_date <= D < end_date
 ### 9.5 Boas práticas
 - Copie **sempre**:
   - O `.db` principal.
-  - A pasta `pdfs/`.
+  - A pasta configurada em `documents_dir` (documentos PDF).
   - A pasta `backups/`.
 
 ---
@@ -572,7 +613,7 @@ start_date <= D < end_date
 - Se quiser chamar o PyInstaller manualmente:
 
 ```powershell
-pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
+pyinstaller --noconsole --name GestaoInteligente --icon assets/app.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
 ```
 
 ### 10.2 Onde fica o executável
@@ -581,9 +622,9 @@ pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --versio
 ### 10.2.1 Pasta de dados do usuário
 - `%APPDATA%\RentalManager\`
   - `rental_manager.db`
-  - `pdfs\`
   - `backups\`
   - `logs\`
+  - `config.json` (inclui `documents_dir` com a pasta padrão de documentos)
 
 ### 10.3 Limitações comuns / troubleshooting
 - Algumas máquinas podem bloquear execução por **SmartScreen**.
@@ -599,6 +640,7 @@ pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --versio
 1. Execute `.\installer\build_installer.ps1`.
 2. O instalador ficará em `dist_installer\GestaoInteligente-Setup-<versao>.exe`.
 3. Use o instalador para garantir atalhos e desinstalação corretos.
+4. O ícone do instalador e dos atalhos usa `assets\app.ico`.
 
 ---
 
@@ -640,8 +682,9 @@ pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --versio
 3. Criar pedido com itens e datas.
 4. Confirmar pedido.
 5. Registrar pagamento.
-6. Emitir recibo/contrato.
-7. Acompanhar agenda e financeiro.
+6. Registrar despesas no Financeiro.
+7. Emitir contrato/recibo/nota quando necessário.
+8. Acompanhar agenda e financeiro.
 
 **Dicas de prevenção de erro**
 - Sempre defina **data de devolução posterior** ao início.
@@ -679,4 +722,4 @@ pyinstaller --noconsole --name GestaoInteligente --icon assets/icon.ico --versio
   - 10 mesas (R$ 12,00)
 
 ### Exemplo de recibo
-- Recibo gerado em: `%APPDATA%\RentalManager\pdfs\pedido_5_20250310_140530_receipt.pdf`
+- Recibo gerado em: `C:\Documentos\GestaoInteligente\Joao_Silva_2025-03-10_Recibo.pdf`

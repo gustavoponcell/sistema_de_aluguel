@@ -89,12 +89,12 @@ class Rental:
     start_date: Optional[str]
     end_date: Optional[str]
     address: Optional[str]
-    contact_phone: Optional[str] = None
-    delivery_required: bool = False
     status: RentalStatus
     total_value: float
     paid_value: float
     payment_status: PaymentStatus
+    contact_phone: Optional[str] = None
+    delivery_required: bool = False
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -435,14 +435,14 @@ MIGRATIONS: list[Migration] = [
             notes
         )
         SELECT
-            id,
-            generated_at,
-            doc_type,
+            documents.id,
+            documents.generated_at,
+            documents.doc_type,
             COALESCE(customers.name, 'Cliente desconhecido'),
             rentals.event_date,
-            file_path,
-            file_path,
-            rental_id,
+            documents.file_path,
+            documents.file_path,
+            documents.rental_id,
             NULL
         FROM documents
         LEFT JOIN rentals ON rentals.id = documents.rental_id

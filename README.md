@@ -53,8 +53,8 @@ O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`
 
 - A disponibilidade é calculada pelo intervalo **[início, fim)** (data de fim é exclusiva).
 - A data de término deve ser **posterior** à data de início.
-- Aluguéis com status **confirmado** ou **concluído** bloqueiam estoque.
-- Aluguéis **rascunho** ou **cancelado** não bloqueiam estoque.
+- Aluguéis com status **rascunho** ou **confirmado** bloqueiam estoque.
+- Aluguéis **cancelado** ou **concluído** não bloqueiam estoque.
 
 > Dica: para um pedido de um único dia, informe a devolução no dia seguinte.
 
@@ -102,14 +102,14 @@ Use o script PowerShell já configurado:
 O script:
 - Usa o entrypoint `src\rental_manager\__main__.py` para garantir abertura do app.
 - Aplica o ícone e os metadados de versão (arquivo `tools\windows_version_info.txt`).
-- Gera automaticamente um ícone mínimo em `assets\icon.ico` caso o arquivo não exista.
+- Gera automaticamente um ícone mínimo em `assets\app.ico` caso o arquivo não exista.
 
 Para personalizar, substitua o ícone por um `.ico` próprio e edite o arquivo de versão.
 
 Ou execute o comando diretamente:
 
 ```powershell
-pyinstaller --noconsole --name RentalManager --icon assets/icon.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
+pyinstaller --noconsole --name RentalManager --icon assets/app.ico --version-file tools/windows_version_info.txt --add-data "assets;assets" --paths "src" --clean --noconfirm src/rental_manager/__main__.py
 ```
 
 ### Onde fica o executável
@@ -128,7 +128,8 @@ Ao iniciar, o app cria automaticamente a pasta de dados em:
 %APPDATA%\RentalManager\
 ```
 
-Lá ficam o banco (`rental_manager.db`), PDFs (`pdfs\`), backups (`backups\`) e logs (`logs\`).
+Lá ficam o banco (`rental_manager.db`), backups (`backups\`), logs (`logs\`) e o
+`config.json` (com `documents_dir` para a pasta padrão dos documentos).
 
 ### Como instalar (uso offline)
 
@@ -146,5 +147,5 @@ Lá ficam o banco (`rental_manager.db`), PDFs (`pdfs\`), backups (`backups\`) e 
 - Abrir o executável e confirmar que não aparece console.
 - Confirmar criação do banco em `%APPDATA%\RentalManager\rental_manager.db`.
 - Confirmar criação de logs em `%APPDATA%\RentalManager\logs\`.
-- Criar um pedido de teste e gerar PDF em `%APPDATA%\RentalManager\pdfs\`.
+- Criar um pedido de teste e gerar PDF na pasta configurada em `documents_dir`.
 - Executar backup e verificar arquivo em `%APPDATA%\RentalManager\backups\`.

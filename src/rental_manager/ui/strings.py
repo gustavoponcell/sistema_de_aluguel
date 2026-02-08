@@ -22,7 +22,7 @@ TERM_SALE = "Venda"
 TERM_SERVICE = "Serviço"
 
 LABEL_STOCK_TOTAL = "Total"
-LABEL_STOCK_IN_USE = "Em uso/Reservado"
+LABEL_STOCK_IN_USE = "Reservado/Em uso"
 LABEL_STOCK_AVAILABLE = "Disponível"
 LABEL_STOCK_TYPE = "Tipo"
 

@@ -29,3 +29,14 @@ python -m scripts.seed_demo_data
 - O script detecta automaticamente o caminho do banco SQLite usado pelo app.
 - Por segurança, ele pede confirmação antes de inserir dados (exceto em `--dry-run`).
 - Para evitar duplicações, os registros gerados usam o prefixo `Seed Demo`.
+
+## Smoke test automatizado
+
+O script `smoke_test.py` executa um fluxo mínimo completo (migrações, pedidos, pagamentos,
+despesas, documento PDF e consultas financeiras) em um banco temporário.
+
+### Como executar
+
+```bash
+python scripts/smoke_test.py
+```

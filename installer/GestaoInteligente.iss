@@ -12,8 +12,8 @@ DefaultDirName={autopf}\GestaoInteligente
 DefaultGroupName=Gestão Inteligente
 OutputDir=..\dist_installer
 OutputBaseFilename=GestaoInteligente-Setup-{#AppVersion}
-SetupIconFile=..\assets\icon.ico
-UninstallDisplayIcon={app}\{#AppExeName}
+SetupIconFile=..\assets\app.ico
+UninstallDisplayIcon={app}\app.ico
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64
@@ -22,13 +22,14 @@ WizardStyle=modern
 
 [Files]
 Source: "..\dist\GestaoInteligente\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos:"; Flags: unchecked
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app.ico"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon; IconFilename: "{app}\app.ico"
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Executar {#AppName}"; Flags: nowait postinstall skipifsilent
