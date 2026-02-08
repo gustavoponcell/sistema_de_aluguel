@@ -17,6 +17,8 @@
 11. [Troubleshooting (muito prático)](#11-troubleshooting-muito-prático)
 12. [Checklist de uso (manual para usuário leigo)](#12-checklist-de-uso-manual-para-usuário-leigo)
 13. [Planejado / Não implementado ainda](#13-planejado--não-implementado-ainda)
+14. [Seed de dados de demonstração](#14-seed-de-dados-de-demonstração)
+15. [Tema escuro das tabelas](#15-tema-escuro-das-tabelas)
 
 ---
 
@@ -700,6 +702,43 @@ pyinstaller --noconsole --name GestaoInteligente --icon assets/app.ico --version
 - **Exportações adicionais** (além do CSV financeiro).
 - **Calendário** visual (existe apenas lista/agenda).
 - **Alertas** ou notificações automáticas.
+
+---
+
+## 14) Seed de dados de demonstração
+
+O script `scripts/seed_demo_data.py` cria dados realistas para testes e demonstrações.
+
+**Como executar**
+
+```bash
+python scripts/seed_demo_data.py
+python scripts/seed_demo_data.py --reset
+```
+
+- `--reset` remove o banco atual em `%APPDATA%\\RentalManager\\rental_manager.db`, recria o schema e insere os dados novamente.
+- O seed utiliza o mesmo caminho/configuração do app.
+
+**O que é criado**
+- Clientes com telefones e observações.
+- Itens de estoque (aluguel), vendas e serviços.
+- Pedidos entre ~2 meses atrás até hoje, com status variados (rascunho, confirmado, concluído, cancelado).
+- Pagamentos (pendentes, parciais e pagos).
+- Entregas e retiradas (endereços opcionais).
+- Documentos (contratos/recibos) com PDFs gerados, quando possível.
+- Algumas despesas para alimentar o financeiro.
+
+---
+
+## 15) Tema escuro das tabelas
+
+As tabelas (Agenda, Estoque, Clientes, Financeiro, Documentos etc.) recebem um ajuste de tema próprio para manter legibilidade no modo escuro:
+
+- Fundo escuro e texto claro, seguindo o tema global.
+- Cabeçalhos e seleção com contraste adequado.
+- Alternância de linhas com cores suaves para leitura.
+
+Se necessário, a customização pode ser ajustada em `src/rental_manager/utils/theme.py`, na função `apply_table_theme`.
 
 ---
 

@@ -142,6 +142,23 @@ def apply_theme_from_choice(
     return applied
 
 
+def apply_table_theme(table: QtWidgets.QTableView, theme_name: str) -> None:
+    """Apply a table-specific theme without touching the global palette."""
+    table.setAlternatingRowColors(True)
+    if theme_name == "dark":
+        palette = table.palette()
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor("#2b2b2b"))
+        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor("#31343c"))
+        palette.setColor(QtGui.QPalette.Text, QtGui.QColor("#f0f0f0"))
+        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor("#3b4252"))
+        palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor("#ffffff"))
+        table.setPalette(palette)
+        table.setStyleSheet(_dark_table_stylesheet())
+    else:
+        table.setPalette(QtWidgets.QApplication.style().standardPalette())
+        table.setStyleSheet("")
+
+
 def _build_dark_palette() -> QtGui.QPalette:
     palette = QtGui.QPalette()
     palette.setColor(QtGui.QPalette.Window, QtGui.QColor(32, 34, 40))
@@ -234,5 +251,32 @@ def _dark_stylesheet() -> str:
     QDoubleSpinBox:disabled,
     QPlainTextEdit:disabled {
         color: #8f98aa;
+    }
+    """
+
+
+def _dark_table_stylesheet() -> str:
+    return """
+    QTableWidget, QTableView {
+        background-color: #2b2b2b;
+        alternate-background-color: #31343c;
+        color: #f0f0f0;
+        gridline-color: #444444;
+        selection-background-color: #3b4252;
+        selection-color: #ffffff;
+    }
+    QTableWidget::item:selected, QTableView::item:selected {
+        background-color: #3b4252;
+        color: #ffffff;
+    }
+    QHeaderView::section {
+        background-color: #333333;
+        color: #f0f0f0;
+        border: 1px solid #444444;
+        padding: 6px 8px;
+    }
+    QTableCornerButton::section {
+        background-color: #333333;
+        border: 1px solid #444444;
     }
     """

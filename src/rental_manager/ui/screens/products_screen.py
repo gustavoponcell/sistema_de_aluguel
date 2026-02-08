@@ -20,6 +20,7 @@ from rental_manager.ui.strings import (
     TITLE_WARNING,
     product_kind_label,
 )
+from rental_manager.utils.theme import apply_table_theme
 
 
 class ProductDialog(QtWidgets.QDialog):
@@ -235,6 +236,12 @@ class ProductsScreen(BaseScreen):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self.table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self.table: apply_table_theme(table, theme)
+        )
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:

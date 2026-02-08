@@ -22,6 +22,7 @@ from rental_manager.ui.strings import (
     TITLE_WARNING,
     product_kind_label,
 )
+from rental_manager.utils.theme import apply_table_theme
 
 
 @dataclass
@@ -188,6 +189,13 @@ class NewRentalScreen(BaseScreen):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self.items_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self.items_table: apply_table_theme(table, theme)
+        )
 
         items_layout.addWidget(self.items_table)
 

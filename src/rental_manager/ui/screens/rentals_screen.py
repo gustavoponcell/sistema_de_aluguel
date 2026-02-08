@@ -38,6 +38,7 @@ from rental_manager.utils.documents import (
     save_documents_settings,
 )
 from rental_manager.utils.pdf_generator import generate_rental_pdf
+from rental_manager.utils.theme import apply_table_theme
 from rental_manager.ui.widgets import InfoBanner
 from rental_manager.ui.strings import (
     TERM_ITEM,
@@ -355,6 +356,12 @@ class RentalDetailsDialog(QtWidgets.QDialog):
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            items_table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=items_table: apply_table_theme(table, theme)
+        )
 
         items_table.setRowCount(len(self._items))
         for row, item in enumerate(self._items):
@@ -535,6 +542,12 @@ class PaymentsSection(QtWidgets.QGroupBox):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self._table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._table: apply_table_theme(table, theme)
+        )
         layout.addWidget(self._table)
 
     def _load_payments(self) -> None:
@@ -819,6 +832,13 @@ class RentalEditDialog(QtWidgets.QDialog):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self.items_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self.items_table: apply_table_theme(table, theme)
+        )
 
         items_layout.addWidget(self.items_table)
 
@@ -1414,6 +1434,12 @@ class RentalsScreen(BaseScreen):
         header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(7, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(8, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self.table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self.table: apply_table_theme(table, theme)
+        )
         layout.addWidget(self.table)
 
         actions_layout = QtWidgets.QHBoxLayout()
