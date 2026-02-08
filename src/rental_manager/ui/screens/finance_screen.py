@@ -47,6 +47,7 @@ from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.strings import TERM_ORDER_PLURAL, TITLE_SUCCESS
 from rental_manager.ui.widgets import KpiCard
+from rental_manager.utils.theme import apply_table_theme
 
 
 @dataclass(frozen=True)
@@ -285,6 +286,13 @@ class FinanceScreen(BaseScreen):
         expense_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
         expense_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
         expense_header.setSectionResizeMode(7, QtWidgets.QHeaderView.Stretch)
+        apply_table_theme(
+            self._expense_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._expense_table: apply_table_theme(table, theme)
+        )
 
         table_layout.addWidget(self._expense_table)
 
@@ -391,6 +399,12 @@ class FinanceScreen(BaseScreen):
         header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(7, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(8, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self._table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._table: apply_table_theme(table, theme)
+        )
 
         table_layout.addWidget(self._table)
         reports_layout.addWidget(table_group)
@@ -426,6 +440,15 @@ class FinanceScreen(BaseScreen):
         expenses_header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
         expenses_header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
         expenses_header.setSectionResizeMode(7, QtWidgets.QHeaderView.Stretch)
+        apply_table_theme(
+            self._expenses_report_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._expenses_report_table: apply_table_theme(
+                table, theme
+            )
+        )
         expenses_layout.addWidget(self._expenses_report_table)
         reports_layout.addWidget(expenses_group)
 
@@ -525,6 +548,13 @@ class FinanceScreen(BaseScreen):
         table_header = self._receivable_table.horizontalHeader()
         table_header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         table_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        apply_table_theme(
+            self._receivable_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._receivable_table: apply_table_theme(table, theme)
+        )
 
         empty_label = QtWidgets.QLabel("Sem dados")
         empty_label.setAlignment(QtCore.Qt.AlignCenter)

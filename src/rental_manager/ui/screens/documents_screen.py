@@ -22,6 +22,7 @@ from rental_manager.utils.documents import (
     save_documents_settings,
 )
 from rental_manager.utils.pdf_generator import generate_rental_pdf
+from rental_manager.utils.theme import apply_table_theme
 
 
 def _format_date(value: Optional[str]) -> str:
@@ -145,6 +146,13 @@ class DocumentsScreen(BaseScreen):
             3, QtWidgets.QHeaderView.Stretch
         )
         self._documents_table.verticalHeader().setVisible(False)
+        apply_table_theme(
+            self._documents_table,
+            "dark" if self._services.theme_manager.is_dark() else "light",
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self._documents_table: apply_table_theme(table, theme)
+        )
 
         layout.addWidget(self._documents_table)
 

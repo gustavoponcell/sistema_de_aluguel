@@ -10,6 +10,7 @@ from rental_manager.domain.models import Customer
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.strings import TITLE_ERROR, TITLE_WARNING
+from rental_manager.utils.theme import apply_table_theme
 
 
 class CustomerDialog(QtWidgets.QDialog):
@@ -143,6 +144,12 @@ class CustomersScreen(BaseScreen):
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+        apply_table_theme(
+            self.table, "dark" if self._services.theme_manager.is_dark() else "light"
+        )
+        self._services.theme_manager.theme_changed.connect(
+            lambda theme, table=self.table: apply_table_theme(table, theme)
+        )
         layout.addWidget(self.table)
 
     def _on_search_changed(self, text: str) -> None:
