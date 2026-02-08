@@ -277,6 +277,7 @@ class FinanceScreen(BaseScreen):
             QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
         )
         self._expense_table.verticalHeader().setVisible(False)
+        self._expense_table.setMinimumHeight(260)
         expense_header = self._expense_table.horizontalHeader()
         expense_header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         expense_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
@@ -389,6 +390,7 @@ class FinanceScreen(BaseScreen):
         self._table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self._table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
+        self._table.setMinimumHeight(260)
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
@@ -431,6 +433,7 @@ class FinanceScreen(BaseScreen):
             QtWidgets.QAbstractItemView.NoEditTriggers
         )
         self._expenses_report_table.verticalHeader().setVisible(False)
+        self._expenses_report_table.setMinimumHeight(260)
         expenses_header = self._expenses_report_table.horizontalHeader()
         expenses_header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         expenses_header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)

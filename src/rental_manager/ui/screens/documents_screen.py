@@ -9,7 +9,13 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from rental_manager.domain.models import Customer, Document, DocumentType, Rental
+from rental_manager.domain.models import (
+    Customer,
+    Document,
+    DocumentType,
+    ProductKind,
+    Rental,
+)
 from rental_manager.logging_config import get_logger
 from rental_manager.paths import get_config_path
 from rental_manager.repositories import rental_repo
@@ -21,8 +27,9 @@ from rental_manager.utils.documents import (
     load_documents_settings,
     save_documents_settings,
 )
-from rental_manager.utils.pdf_generator import generate_rental_pdf
+from rental_manager.utils.pdf_generator import generate_document_pdf
 from rental_manager.utils.theme import apply_table_theme
+from rental_manager.ui.strings import product_kind_label
 
 
 def _format_date(value: Optional[str]) -> str:
@@ -347,7 +354,7 @@ class DocumentsScreen(BaseScreen):
             documents_dir = self._ensure_documents_dir()
             if not documents_dir:
                 return
-            rental_record, _, customer = rental_payload
+            rental_record, _, customer, order_kind = rental_payload
             file_name = build_document_filename(
                 customer.name,
                 rental_record.event_date,
@@ -357,10 +364,11 @@ class DocumentsScreen(BaseScreen):
             output_path = self._choose_document_path(default_path)
             if not output_path:
                 return
-            generate_rental_pdf(
-                rental_payload,
+            generate_document_pdf(
+                rental_payload[:3],
                 output_path,
-                kind=document.doc_type.value,
+                doc_type=document.doc_type,
+                order_kind=order_kind,
             )
             created_at = datetime.now().isoformat(timespec="seconds")
             self._services.document_repo.add(
@@ -373,7 +381,7 @@ class DocumentsScreen(BaseScreen):
                     file_name=output_path.name,
                     file_path=str(output_path),
                     order_id=document.order_id,
-                    notes="Reexportado",
+                    notes=f"Reexportado ({product_kind_label(order_kind)})",
                 )
             )
             self._services.data_bus.data_changed.emit()
@@ -388,7 +396,7 @@ class DocumentsScreen(BaseScreen):
 
     def _build_pdf_payload(
         self, rental_id: int
-    ) -> tuple[Rental, list[SimpleNamespace], Customer]:
+    ) -> tuple[Rental, list[SimpleNamespace], Customer, ProductKind]:
         rental_data = rental_repo.get_rental_with_items(
             rental_id,
             connection=self._services.connection,
@@ -407,8 +415,11 @@ class DocumentsScreen(BaseScreen):
         products = self._services.product_repo.list_all()
         product_map = {product.id: product for product in products}
         items_for_pdf = []
+        order_kinds: set[ProductKind] = set()
         for item in items:
             product = product_map.get(item.product_id)
+            product_kind = product.kind if product else ProductKind.RENTAL
+            order_kinds.add(product_kind)
             items_for_pdf.append(
                 SimpleNamespace(
                     product_id=item.product_id,
@@ -416,6 +427,15 @@ class DocumentsScreen(BaseScreen):
                     qty=item.qty,
                     unit_price=item.unit_price,
                     line_total=item.line_total,
+                    product_kind=product_kind,
                 )
             )
-        return rental, items_for_pdf, customer
+        if ProductKind.RENTAL in order_kinds:
+            order_kind = ProductKind.RENTAL
+        elif ProductKind.SERVICE in order_kinds:
+            order_kind = ProductKind.SERVICE
+        elif ProductKind.SALE in order_kinds:
+            order_kind = ProductKind.SALE
+        else:
+            order_kind = ProductKind.RENTAL
+        return rental, items_for_pdf, customer, order_kind

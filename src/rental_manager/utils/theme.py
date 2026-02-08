@@ -147,10 +147,10 @@ def apply_table_theme(table: QtWidgets.QTableView, theme_name: str) -> None:
     table.setAlternatingRowColors(True)
     if theme_name == "dark":
         palette = table.palette()
-        palette.setColor(QtGui.QPalette.Base, QtGui.QColor("#2b2b2b"))
-        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor("#31343c"))
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor("#1f1f1f"))
+        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor("#242424"))
         palette.setColor(QtGui.QPalette.Text, QtGui.QColor("#f0f0f0"))
-        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor("#3b4252"))
+        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor("#3a3a3a"))
         palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor("#ffffff"))
         table.setPalette(palette)
         table.setStyleSheet(_dark_table_stylesheet())
@@ -258,15 +258,15 @@ def _dark_stylesheet() -> str:
 def _dark_table_stylesheet() -> str:
     return """
     QTableWidget, QTableView {
-        background-color: #2b2b2b;
-        alternate-background-color: #31343c;
+        background-color: #1f1f1f;
+        alternate-background-color: #242424;
         color: #f0f0f0;
         gridline-color: #444444;
-        selection-background-color: #3b4252;
+        selection-background-color: #3a3a3a;
         selection-color: #ffffff;
     }
     QTableWidget::item:selected, QTableView::item:selected {
-        background-color: #3b4252;
+        background-color: #3a3a3a;
         color: #ffffff;
     }
     QHeaderView::section {

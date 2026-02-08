@@ -542,15 +542,24 @@ start_date <= D < end_date
 ## 8) Documentos (Contratos / Notas / Recibos)
 
 **Onde gera**
-- Na tela **Agenda**, botões **“Gerar contrato”** e **“Gerar recibo”**.
+- Na tela **Agenda**, botões de geração variam conforme o tipo do pedido:
+  - **Aluguel** → “Gerar contrato de locação” e “Gerar recibo de pagamento (Aluguel)”.
+  - **Venda** → “Gerar comprovante de venda” e “Gerar recibo de pagamento (Venda)”.
+  - **Serviço** → “Gerar ordem de serviço” e “Gerar recibo de pagamento (Serviço)”.
 - A tela **Documentos** centraliza todos os arquivos gerados.
 
 **O que contém**
-- Dados do locador (configurados em `config.py`).
-- Dados do cliente (nome e telefone).
-- Datas do pedido e endereço.
-- Itens, valores e saldo.
-- Termos e campo para assinatura.
+- Título com **nome do cliente + data do pedido**.
+- Dados do responsável (configurados em `config.py`).
+- Dados do cliente (nome, telefone e documento quando disponível).
+- Endereço/local (se vazio: “Retirada no local” ou “Local a combinar”).
+- Itens, valores, total, pago e saldo.
+- Campo de assinatura (Cliente e Responsável).
+- Rodapé com “Gestão Inteligente” + data/hora de geração.
+- Conteúdo varia por tipo:
+  - **Aluguel**: período (retirada/entrega e devolução) e termos de devolução/avarias.
+  - **Venda**: data única, sem período.
+  - **Serviço**: data única (ou intervalo quando existir), local opcional.
 
 **Onde é salvo**
 - Na **primeira geração**, o app pergunta a pasta padrão (salva em `%APPDATA%\RentalManager\config.json`).
@@ -558,7 +567,7 @@ start_date <= D < end_date
 - Nome do arquivo: `NOME_CLIENTE_DATA_TIPO.pdf` (ex.: `Joao_Silva_2026-02-03_Contrato.pdf`).
 
 **Como reemitir / abrir o último**
-- Use os botões **“Abrir último contrato”** e **“Abrir último recibo”** no pedido selecionado.
+- Use os botões **“Abrir último …”** no pedido selecionado (o texto se adapta ao tipo).
 - Se não houver documento gerado, os botões ficam desabilitados com dica de motivo.
 - A tela **Documentos** permite **Abrir** e **Mostrar na pasta**.
 

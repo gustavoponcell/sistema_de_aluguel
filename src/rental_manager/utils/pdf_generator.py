@@ -1,4 +1,4 @@
-"""PDF generation utilities for rentals."""
+"""PDF generation utilities for orders."""
 
 from __future__ import annotations
 
@@ -13,7 +13,13 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from rental_manager.config import PDF_ISSUER, PdfIssuerInfo
-from rental_manager.domain.models import Customer, Rental, RentalItem
+from rental_manager.domain.models import (
+    Customer,
+    DocumentType,
+    ProductKind,
+    Rental,
+    RentalItem,
+)
 
 
 def _format_currency(value: float) -> str:
@@ -30,17 +36,98 @@ def _format_date(value: str | None) -> str:
         return value
 
 
-def generate_rental_pdf(
+def _kind_label(kind: ProductKind) -> str:
+    return {
+        ProductKind.RENTAL: "Aluguel",
+        ProductKind.SALE: "Venda",
+        ProductKind.SERVICE: "Serviço",
+    }.get(kind, "Aluguel")
+
+
+def _document_title(doc_type: DocumentType, kind: ProductKind) -> str:
+    if doc_type == DocumentType.CONTRACT:
+        return {
+            ProductKind.RENTAL: "CONTRATO DE LOCAÇÃO",
+            ProductKind.SALE: "COMPROVANTE DE VENDA",
+            ProductKind.SERVICE: "ORDEM DE SERVIÇO",
+        }.get(kind, "CONTRATO DE LOCAÇÃO")
+    return f"RECIBO DE PAGAMENTO ({_kind_label(kind).upper()})"
+
+
+def _build_order_rows(rental: Rental, kind: ProductKind) -> list[list[str]]:
+    address = rental.address
+    if not address:
+        if kind == ProductKind.SALE:
+            address = "Retirada no local"
+        elif kind == ProductKind.SERVICE:
+            address = "Local a combinar"
+        else:
+            address = "Retirada no local"
+
+    if kind == ProductKind.RENTAL:
+        return [
+            ["Data do pedido", _format_date(rental.event_date)],
+            ["Retirada/Entrega", _format_date(rental.start_date)],
+            ["Devolução", _format_date(rental.end_date)],
+            ["Entrega", "Sim" if rental.delivery_required else "Retirada"],
+            ["Endereço", address],
+        ]
+
+    if kind == ProductKind.SALE:
+        return [
+            ["Data da venda", _format_date(rental.event_date)],
+            ["Entrega", "Sim" if rental.delivery_required else "Retirada"],
+            ["Endereço", address],
+        ]
+
+    rows = [["Data do serviço", _format_date(rental.event_date)]]
+    if rental.start_date:
+        rows.append(["Início", _format_date(rental.start_date)])
+    if rental.end_date:
+        rows.append(["Fim", _format_date(rental.end_date)])
+    rows.append(["Local", address])
+    return rows
+
+
+def _build_terms(doc_type: DocumentType, kind: ProductKind) -> str:
+    if doc_type == DocumentType.RECEIPT:
+        return (
+            "Declaramos que recebemos os valores descritos neste documento, "
+            "referentes ao pedido informado. Este recibo comprova o pagamento "
+            "do cliente pelos itens/serviços listados."
+        )
+    if kind == ProductKind.SALE:
+        return (
+            "Os itens vendidos foram conferidos no momento da entrega/retirada. "
+            "Eventuais ajustes ou devoluções devem ser comunicados imediatamente."
+        )
+    if kind == ProductKind.SERVICE:
+        return (
+            "O serviço será executado conforme combinado entre as partes. "
+            "Qualquer alteração de data ou local deve ser avisada com antecedência."
+        )
+    return (
+        "O cliente se responsabiliza pela guarda e conservação dos itens durante o "
+        "período do pedido, devendo devolver todos os itens limpos e sem danos na "
+        "data combinada. Em caso de avarias ou perda, os custos de reposição serão "
+        "cobrados conforme orçamento. Alterações de data devem ser comunicadas com "
+        "antecedência."
+    )
+
+
+def generate_document_pdf(
     rental_with_items: tuple[Rental, Iterable[RentalItem], Customer],
     output_path: Path,
     *,
-    kind: str = "contract",
+    doc_type: DocumentType,
+    order_kind: ProductKind,
     issuer: PdfIssuerInfo = PDF_ISSUER,
 ) -> Path:
-    """Generate a rental PDF (contract or receipt)."""
+    """Generate a PDF document for the given order kind."""
     rental, items, customer = rental_with_items
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    title = _document_title(doc_type, order_kind)
     doc = SimpleDocTemplate(
         str(output_path),
         pagesize=A4,
@@ -48,7 +135,7 @@ def generate_rental_pdf(
         leftMargin=20 * mm,
         topMargin=18 * mm,
         bottomMargin=18 * mm,
-        title="Contrato de Locação" if kind == "contract" else "Recibo",
+        title=title,
         author=issuer.name,
     )
 
@@ -71,12 +158,13 @@ def generate_rental_pdf(
     )
 
     elements: list[object] = []
-    title = "CONTRATO DE LOCAÇÃO" if kind == "contract" else "RECIBO"
-    elements.append(Paragraph(f"<b>{title}</b>", styles["Title"]))
+    main_title = f"{customer.name} - {_format_date(rental.event_date)}"
+    elements.append(Paragraph(f"<b>{main_title}</b>", styles["Title"]))
+    elements.append(Paragraph(title, styles["Heading2"]))
     elements.append(Spacer(1, 8))
 
     issuer_lines = [
-        f"<b>Locador:</b> {issuer.name}",
+        f"<b>Responsável:</b> {issuer.name}",
         f"<b>Contato:</b> {issuer.phone}",
         f"<b>Documento:</b> {issuer.document}",
         f"<b>Endereço:</b> {issuer.address}",
@@ -89,20 +177,13 @@ def generate_rental_pdf(
         "<b>Cliente</b>",
         f"Nome: {customer.name}",
         f"Telefone: {contact_phone or '—'}",
+        "Documento: —",
     ]
     elements.append(Paragraph("<br/>".join(customer_lines), styles["Normal"]))
     elements.append(Spacer(1, 10))
 
-    dates_table = Table(
-        [
-            ["Data do pedido", _format_date(rental.event_date)],
-            ["Retirada/Entrega", _format_date(rental.start_date)],
-            ["Devolução", _format_date(rental.end_date)],
-            ["Entrega", "Sim" if rental.delivery_required else "Retirada"],
-            ["Endereço", rental.address or "—"],
-        ],
-        colWidths=[40 * mm, 120 * mm],
-    )
+    order_rows = _build_order_rows(rental, order_kind)
+    dates_table = Table(order_rows, colWidths=[40 * mm, 120 * mm])
     dates_table.setStyle(
         TableStyle(
             [
@@ -166,20 +247,14 @@ def generate_rental_pdf(
     elements.append(values_table)
     elements.append(Spacer(1, 12))
 
-    terms = (
-        "O cliente se responsabiliza pela guarda e conservação dos itens durante o "
-        "período do pedido, devendo devolver todos os itens limpos e sem danos na "
-        "data combinada. Em caso de avarias ou perda, os custos de reposição serão "
-        "cobrados conforme orçamento. Alterações de data devem ser comunicadas com "
-        "antecedência."
-    )
+    terms = _build_terms(doc_type, order_kind)
     elements.append(Paragraph("Termos", styles["SectionTitle"]))
     elements.append(Paragraph(terms, styles["SmallText"]))
     elements.append(Spacer(1, 18))
 
     signature_table = Table(
         [
-            ["Locador", "Cliente"],
+            ["Responsável", "Cliente"],
             ["_____________________________", "_____________________________"],
         ],
         colWidths=[80 * mm, 80 * mm],
@@ -194,5 +269,33 @@ def generate_rental_pdf(
     )
     elements.append(signature_table)
 
+    footer = (
+        f"Gestão Inteligente — gerado em "
+        f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(footer, styles["SmallText"]))
+
     doc.build(elements)
     return output_path
+
+
+def generate_rental_pdf(
+    rental_with_items: tuple[Rental, Iterable[RentalItem], Customer],
+    output_path: Path,
+    *,
+    kind: str = "contract",
+    issuer: PdfIssuerInfo = PDF_ISSUER,
+) -> Path:
+    """Backward-compatible wrapper for PDF generation."""
+    try:
+        doc_type = DocumentType(kind)
+    except ValueError:
+        doc_type = DocumentType.CONTRACT
+    return generate_document_pdf(
+        rental_with_items,
+        output_path,
+        doc_type=doc_type,
+        order_kind=ProductKind.RENTAL,
+        issuer=issuer,
+    )
