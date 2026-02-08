@@ -37,7 +37,7 @@ from rental_manager.utils.documents import (
     load_documents_settings,
     save_documents_settings,
 )
-from rental_manager.utils.pdf_generator import generate_rental_pdf
+from rental_manager.utils.pdf_generator import generate_document_pdf
 from rental_manager.utils.theme import apply_table_theme
 from rental_manager.ui.widgets import InfoBanner
 from rental_manager.ui.strings import (
@@ -74,6 +74,38 @@ def _format_datetime(value: Optional[str]) -> str:
         return parsed.toString("dd/MM/yyyy HH:mm")
     parsed_date = QtCore.QDate.fromString(value, "yyyy-MM-dd")
     return parsed_date.toString("dd/MM/yyyy") if parsed_date.isValid() else value
+
+
+def _contract_label_for_kind(kind: ProductKind) -> str:
+    if kind == ProductKind.SALE:
+        return "comprovante de venda"
+    if kind == ProductKind.SERVICE:
+        return "ordem de serviço"
+    return "contrato de locação"
+
+
+def _contract_button_label(kind: ProductKind) -> str:
+    if kind == ProductKind.SALE:
+        return "Gerar comprovante de venda"
+    if kind == ProductKind.SERVICE:
+        return "Gerar ordem de serviço"
+    return "Gerar contrato de locação"
+
+
+def _open_contract_button_label(kind: ProductKind) -> str:
+    if kind == ProductKind.SALE:
+        return "Abrir último comprovante"
+    if kind == ProductKind.SERVICE:
+        return "Abrir última ordem de serviço"
+    return "Abrir último contrato"
+
+
+def _receipt_button_label(kind: ProductKind) -> str:
+    return f"Gerar recibo de pagamento ({product_kind_label(kind)})"
+
+
+def _open_receipt_button_label(kind: ProductKind) -> str:
+    return f"Abrir último recibo ({product_kind_label(kind)})"
 
 
 def _summarize_address(address: Optional[str], max_len: int = 42) -> str:
@@ -1437,9 +1469,7 @@ class RentalsScreen(BaseScreen):
         apply_table_theme(
             self.table, "dark" if self._services.theme_manager.is_dark() else "light"
         )
-        self._services.theme_manager.theme_changed.connect(
-            lambda theme, table=self.table: apply_table_theme(table, theme)
-        )
+        self._services.theme_manager.theme_changed.connect(self._on_theme_changed)
         layout.addWidget(self.table)
 
         actions_layout = QtWidgets.QHBoxLayout()
@@ -1539,15 +1569,17 @@ class RentalsScreen(BaseScreen):
         self.generate_contract_button.setEnabled(enabled)
         self.generate_receipt_button.setEnabled(enabled)
         if not enabled:
+            self._update_document_labels(ProductKind.RENTAL)
+        if not enabled:
             self._set_open_button_state(
                 self.open_contract_button,
                 False,
-                "Selecione um pedido para abrir o contrato.",
+                "Selecione um pedido para abrir o contrato de locação.",
             )
             self._set_open_button_state(
                 self.open_receipt_button,
                 False,
-                "Selecione um pedido para abrir o recibo.",
+                "Selecione um pedido para abrir o recibo (aluguel).",
             )
 
     def _on_filters_changed(self) -> None:
@@ -1755,11 +1787,18 @@ class RentalsScreen(BaseScreen):
         return "Data única"
 
     def _apply_row_style(self, row: int, kind: ProductKind) -> None:
-        color_map = {
-            ProductKind.RENTAL: QtGui.QColor("#E8F1FF"),
-            ProductKind.SALE: QtGui.QColor("#E8F7EE"),
-            ProductKind.SERVICE: QtGui.QColor("#F3EAFE"),
-        }
+        if self._services.theme_manager.is_dark():
+            color_map = {
+                ProductKind.RENTAL: QtGui.QColor("#263042"),
+                ProductKind.SALE: QtGui.QColor("#26362c"),
+                ProductKind.SERVICE: QtGui.QColor("#2f263a"),
+            }
+        else:
+            color_map = {
+                ProductKind.RENTAL: QtGui.QColor("#E8F1FF"),
+                ProductKind.SALE: QtGui.QColor("#E8F7EE"),
+                ProductKind.SERVICE: QtGui.QColor("#F3EAFE"),
+            }
         color = color_map.get(kind)
         if not color:
             return
@@ -1767,6 +1806,15 @@ class RentalsScreen(BaseScreen):
             item = self.table.item(row, column)
             if item:
                 item.setBackground(color)
+
+    def _refresh_table_row_styles(self) -> None:
+        for row, rental in enumerate(self._rentals):
+            kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
+            self._apply_row_style(row, kind)
+
+    def _on_theme_changed(self, theme: str) -> None:
+        apply_table_theme(self.table, theme)
+        self._refresh_table_row_styles()
 
     def _get_selected_rental(self) -> Optional[Rental]:
         selected = self.table.selectionModel().selectedRows()
@@ -1859,17 +1907,40 @@ class RentalsScreen(BaseScreen):
         button.setToolTip(tooltip)
 
     def _update_document_buttons(self, rental_id: int) -> None:
+        kind = self._rental_kinds.get(rental_id, ProductKind.RENTAL)
+        self._update_document_labels(kind)
         for doc_type in (DocumentType.CONTRACT, DocumentType.RECEIPT):
             document = self._services.document_repo.get_latest(rental_id, doc_type)
             self._latest_documents[doc_type] = document
-        self._apply_document_state(DocumentType.CONTRACT, self.open_contract_button)
-        self._apply_document_state(DocumentType.RECEIPT, self.open_receipt_button)
+        self._apply_document_state(
+            DocumentType.CONTRACT,
+            self.open_contract_button,
+            kind,
+        )
+        self._apply_document_state(
+            DocumentType.RECEIPT,
+            self.open_receipt_button,
+            kind,
+        )
+
+    def _update_document_labels(self, kind: ProductKind) -> None:
+        self.generate_contract_button.setText(_contract_button_label(kind))
+        self.generate_receipt_button.setText(_receipt_button_label(kind))
+        self.open_contract_button.setText(_open_contract_button_label(kind))
+        self.open_receipt_button.setText(_open_receipt_button_label(kind))
 
     def _apply_document_state(
-        self, doc_type: DocumentType, button: QtWidgets.QPushButton
+        self,
+        doc_type: DocumentType,
+        button: QtWidgets.QPushButton,
+        kind: ProductKind,
     ) -> None:
         document = self._latest_documents.get(doc_type)
-        label = "contrato" if doc_type == DocumentType.CONTRACT else "recibo"
+        label = (
+            _contract_label_for_kind(kind)
+            if doc_type == DocumentType.CONTRACT
+            else f"recibo ({product_kind_label(kind).lower()})"
+        )
         if not document:
             self._set_open_button_state(
                 button,
@@ -1949,7 +2020,7 @@ class RentalsScreen(BaseScreen):
             documents_dir = self._ensure_documents_dir()
             if not documents_dir:
                 return
-            rental_record, _, customer = rental_payload
+            rental_record, _, customer, order_kind = rental_payload
             file_name = build_document_filename(
                 customer.name,
                 rental_record.event_date,
@@ -1959,10 +2030,11 @@ class RentalsScreen(BaseScreen):
             output_path = self._choose_document_path(default_path)
             if not output_path:
                 return
-            generate_rental_pdf(
-                rental_payload,
+            generate_document_pdf(
+                rental_payload[:3],
                 output_path,
-                kind=doc_type.value,
+                doc_type=doc_type,
+                order_kind=order_kind,
             )
             created_at = datetime.now().isoformat(timespec="seconds")
             self._services.document_repo.add(
@@ -1975,7 +2047,7 @@ class RentalsScreen(BaseScreen):
                     file_name=output_path.name,
                     file_path=str(output_path),
                     order_id=rental.id,
-                    notes=None,
+                    notes=f"Tipo pedido: {product_kind_label(order_kind)}",
                 )
             )
             self._update_document_buttons(rental.id)
@@ -2025,7 +2097,7 @@ class RentalsScreen(BaseScreen):
 
     def _build_pdf_payload(
         self, rental_id: int
-    ) -> tuple[Rental, list[SimpleNamespace], Customer]:
+    ) -> tuple[Rental, list[SimpleNamespace], Customer, ProductKind]:
         rental_data = rental_repo.get_rental_with_items(
             rental_id,
             connection=self._services.connection,
@@ -2044,8 +2116,11 @@ class RentalsScreen(BaseScreen):
         products = self._services.product_repo.list_all()
         product_map = {product.id: product for product in products}
         items_for_pdf = []
+        order_kinds: set[ProductKind] = set()
         for item in items:
             product = product_map.get(item.product_id)
+            product_kind = product.kind if product else ProductKind.RENTAL
+            order_kinds.add(product_kind)
             items_for_pdf.append(
                 SimpleNamespace(
                     product_id=item.product_id,
@@ -2053,6 +2128,15 @@ class RentalsScreen(BaseScreen):
                     qty=item.qty,
                     unit_price=item.unit_price,
                     line_total=item.line_total,
+                    product_kind=product_kind,
                 )
             )
-        return rental, items_for_pdf, customer
+        if ProductKind.RENTAL in order_kinds:
+            order_kind = ProductKind.RENTAL
+        elif ProductKind.SERVICE in order_kinds:
+            order_kind = ProductKind.SERVICE
+        elif ProductKind.SALE in order_kinds:
+            order_kind = ProductKind.SALE
+        else:
+            order_kind = ProductKind.RENTAL
+        return rental, items_for_pdf, customer, order_kind
