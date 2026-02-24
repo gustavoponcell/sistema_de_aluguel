@@ -6,7 +6,11 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+<<<<<<< HEAD
 from typing import Iterable, Optional, Sequence
+=======
+from typing import Iterable, Optional
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 from rental_manager.db.connection import get_connection, transaction
 from rental_manager.domain.models import (
@@ -57,7 +61,11 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+<<<<<<< HEAD
 ORDER_DATE_EXPR = "COALESCE(r.order_date, COALESCE(r.start_date, r.event_date))"
+=======
+ORDER_DATE_EXPR = "COALESCE(r.start_date, r.event_date)"
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 
 def _coerce_status(status: str | RentalStatus) -> RentalStatus:
@@ -105,12 +113,15 @@ def _build_items(
     return normalized, total_value
 
 
+<<<<<<< HEAD
 def _order_date_value(start_date: Optional[str], event_date: str) -> str:
     if start_date:
         return start_date
     return event_date
 
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 @contextmanager
 def _optional_connection(
     connection: Optional[sqlite3.Connection],
@@ -173,7 +184,10 @@ def create_rental(
     final_total = computed_total if total_value is None else float(total_value)
     payment_status = _payment_status(paid_value, final_total)
     rental_status = _coerce_status(status)
+<<<<<<< HEAD
     order_date = _order_date_value(start_date, event_date)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     try:
         with _optional_connection(connection) as conn:
             with transaction(conn):
@@ -186,7 +200,10 @@ def create_rental(
                         end_date,
                         address,
                         contact_phone,
+<<<<<<< HEAD
                         order_date,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                         delivery_required,
                         status,
                         total_value,
@@ -195,7 +212,11 @@ def create_rental(
                         created_at,
                         updated_at
                     )
+<<<<<<< HEAD
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+=======
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                     """,
                     (
                         customer_id,
@@ -204,7 +225,10 @@ def create_rental(
                         end_date,
                         address,
                         contact_phone,
+<<<<<<< HEAD
                         order_date,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                         int(delivery_required),
                         rental_status.value,
                         final_total,
@@ -258,8 +282,11 @@ def create_rental(
         payment_status=payment_status,
         created_at=created_at,
         updated_at=created_at,
+<<<<<<< HEAD
         customer_name=None,
         order_date=order_date,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     )
 
 
@@ -286,7 +313,10 @@ def update_rental(
     final_total = computed_total if total_value is None else float(total_value)
     payment_status = _payment_status(paid_value, final_total)
     rental_status = _coerce_status(status)
+<<<<<<< HEAD
     order_date = _order_date_value(start_date, event_date)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     try:
         with _optional_connection(connection) as conn:
             with transaction(conn):
@@ -300,7 +330,10 @@ def update_rental(
                         end_date = ?,
                         address = ?,
                         contact_phone = ?,
+<<<<<<< HEAD
                         order_date = ?,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                         delivery_required = ?,
                         status = ?,
                         total_value = ?,
@@ -316,7 +349,10 @@ def update_rental(
                         end_date,
                         address,
                         contact_phone,
+<<<<<<< HEAD
                         order_date,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                         int(delivery_required),
                         rental_status.value,
                         final_total,
@@ -374,8 +410,11 @@ def update_rental(
         paid_value=paid_value,
         payment_status=payment_status,
         updated_at=updated_at,
+<<<<<<< HEAD
         customer_name=None,
         order_date=order_date,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     )
 
 
@@ -448,6 +487,7 @@ def get_finance_report_by_period(
     try:
         with _optional_connection(connection) as conn:
             if _table_exists(conn, "payments"):
+<<<<<<< HEAD
                 row = conn.execute(
                     f"""
                     SELECT
@@ -510,6 +550,62 @@ def get_finance_report_by_period(
         total_received=float(row["total_received"] or 0),
         total_to_receive=float(row["total_to_receive"] or 0),
         rentals_count=int(row["rentals_count"] or 0),
+=======
+                received_row = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(amount), 0) AS total_received
+                    FROM payments
+                    WHERE paid_at IS NOT NULL
+                      AND date(paid_at) >= ?
+                      AND date(paid_at) <= ?
+                    """,
+                    (start_date, end_date),
+                ).fetchone()
+            else:
+                received_row = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(paid_value), 0) AS total_received
+                    FROM rentals
+                    WHERE COALESCE(start_date, event_date) >= ?
+                      AND COALESCE(start_date, event_date) <= ?
+                      AND status != 'canceled'
+                    """,
+                    (start_date, end_date),
+                ).fetchone()
+            totals_row = conn.execute(
+                """
+                SELECT
+                    COALESCE(SUM(
+                        CASE
+                            WHEN r.status = 'confirmed'
+                            THEN CASE
+                                WHEN (r.total_value - r.paid_value) > 0
+                                THEN (r.total_value - r.paid_value)
+                                ELSE 0
+                            END
+                            ELSE 0
+                        END
+                    ), 0) AS total_to_receive,
+                    COUNT(*) AS rentals_count
+                FROM rentals r
+                WHERE COALESCE(r.start_date, r.event_date) >= ?
+                  AND COALESCE(r.start_date, r.event_date) <= ?
+                  AND r.status != 'canceled'
+                """,
+                (start_date, end_date),
+            ).fetchone()
+    except Exception:
+        logger.exception("Failed to build finance report")
+        raise
+    if not totals_row:
+        return FinanceReport(total_received=0.0, total_to_receive=0.0, rentals_count=0)
+    return FinanceReport(
+        total_received=float(received_row["total_received"] or 0)
+        if received_row
+        else 0.0,
+        total_to_receive=float(totals_row["total_to_receive"] or 0),
+        rentals_count=int(totals_row["rentals_count"] or 0),
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     )
 
 
@@ -800,10 +896,15 @@ def list_rentals(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     status: Optional[str | RentalStatus] = None,
+<<<<<<< HEAD
     statuses: Optional[Sequence[str | RentalStatus]] = None,
     payment_status: Optional[str | PaymentStatus] = None,
     search: Optional[str] = None,
     customer_id: Optional[int] = None,
+=======
+    payment_status: Optional[str | PaymentStatus] = None,
+    search: Optional[str] = None,
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     connection: Optional[sqlite3.Connection] = None,
 ) -> list[Rental]:
     """List rentals with optional filters (event date, status, payment, search)."""
@@ -813,13 +914,19 @@ def list_rentals(
     if start_date:
         if end_date:
             clauses.append(
+<<<<<<< HEAD
                 f"{ORDER_DATE_EXPR} <= ? AND COALESCE(r.end_date, r.event_date) >= ?"
+=======
+                "COALESCE(r.start_date, r.event_date) <= ? "
+                "AND COALESCE(r.end_date, r.event_date) >= ?"
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             )
             params.extend([end_date, start_date])
         else:
             clauses.append("COALESCE(r.end_date, r.event_date) >= ?")
             params.append(start_date)
     elif end_date:
+<<<<<<< HEAD
         clauses.append(f"{ORDER_DATE_EXPR} <= ?")
         params.append(end_date)
     normalized_statuses: list[str] = []
@@ -834,6 +941,11 @@ def list_rentals(
         clauses.append(f"r.status IN ({placeholders})")
         params.extend(normalized_statuses)
     elif status:
+=======
+        clauses.append("COALESCE(r.start_date, r.event_date) <= ?")
+        params.append(end_date)
+    if status:
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         clauses.append("r.status = ?")
         params.append(_coerce_status(status).value)
     if payment_status:
@@ -847,6 +959,7 @@ def list_rentals(
     if search:
         clauses.append("(r.address LIKE ? OR c.name LIKE ?)")
         params.extend([f"%{search}%", f"%{search}%"])
+<<<<<<< HEAD
     if customer_id is not None:
         clauses.append("r.customer_id = ?")
         params.append(customer_id)
@@ -857,6 +970,15 @@ def list_rentals(
         JOIN customers c ON c.id = r.customer_id
         {where_clause}
         ORDER BY {ORDER_DATE_EXPR}, r.event_date, r.id
+=======
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    query = f"""
+        SELECT r.*
+        FROM rentals r
+        JOIN customers c ON c.id = r.customer_id
+        {where_clause}
+        ORDER BY COALESCE(r.start_date, r.event_date), r.event_date, r.id
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     """
     try:
         with _optional_connection(connection) as conn:

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+<<<<<<< HEAD
 from datetime import datetime
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from typing import Optional
 
 from rental_manager.domain.models import Payment, PaymentStatus
@@ -18,7 +21,10 @@ class PaymentService:
         self._connection = connection
         self._connection.row_factory = sqlite3.Row
         self._repo = payment_repo.PaymentRepository(connection)
+<<<<<<< HEAD
         self._ensure_paid_at_defaults()
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def list_payments(self, rental_id: int) -> list[Payment]:
         return self._repo.list_by_rental(rental_id)
@@ -36,9 +42,14 @@ class PaymentService:
     ) -> Payment:
         if amount <= 0:
             raise ValidationError("O valor do pagamento deve ser maior que zero.")
+<<<<<<< HEAD
         normalized_paid_at = self._normalize_paid_at(paid_at)
         with self._connection:
             payment = self._repo.create(rental_id, amount, method, normalized_paid_at, note)
+=======
+        with self._connection:
+            payment = self._repo.create(rental_id, amount, method, paid_at, note)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self._sync_rental_payment(rental_id)
         return payment
 
@@ -55,9 +66,14 @@ class PaymentService:
         payment = self._repo.get_by_id(payment_id)
         if not payment:
             raise NotFoundError("Pagamento não encontrado.")
+<<<<<<< HEAD
         normalized_paid_at = self._normalize_paid_at(paid_at)
         with self._connection:
             updated = self._repo.update(payment_id, amount, method, normalized_paid_at, note)
+=======
+        with self._connection:
+            updated = self._repo.update(payment_id, amount, method, paid_at, note)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self._sync_rental_payment(payment.rental_id)
         return updated
 
@@ -86,6 +102,7 @@ class PaymentService:
             connection=self._connection,
         )
 
+<<<<<<< HEAD
     def _normalize_paid_at(self, paid_at: Optional[str]) -> str:
         if paid_at and paid_at.strip():
             return paid_at
@@ -111,6 +128,8 @@ class PaymentService:
                 """
             )
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _payment_status(self, paid_value: float, total_value: float) -> PaymentStatus:
         if paid_value <= 0:
             return PaymentStatus.UNPAID

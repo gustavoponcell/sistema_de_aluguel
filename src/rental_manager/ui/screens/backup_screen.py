@@ -7,8 +7,11 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+<<<<<<< HEAD
 from rental_manager.db.connection import get_connection
 from rental_manager.logging_config import get_logger
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.paths import get_backup_dir, get_config_path, get_db_path
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
@@ -17,7 +20,10 @@ from rental_manager.utils.backup import (
     export_backup,
     list_backups,
     load_backup_settings,
+<<<<<<< HEAD
     prepare_for_restore,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     restore_backup,
     save_backup_settings,
 )
@@ -28,10 +34,13 @@ class BackupScreen(BaseScreen):
 
     def __init__(self, services: AppServices) -> None:
         super().__init__(services)
+<<<<<<< HEAD
         self._logger = get_logger("BackupScreen")
         self._connection_detached = False
         self._busy = False
         self._shutting_down = False
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._backup_dir = get_backup_dir()
         self._db_path = get_db_path()
         self._config_path = get_config_path()
@@ -94,6 +103,7 @@ class BackupScreen(BaseScreen):
 
         layout.addStretch()
 
+<<<<<<< HEAD
 
     def _set_busy_state(self, busy: bool, message: str | None = None) -> None:
         if message:
@@ -194,6 +204,8 @@ class BackupScreen(BaseScreen):
             message,
         )
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _load_settings(self) -> None:
         settings = load_backup_settings(self._config_path)
         self.auto_backup_checkbox.setChecked(settings.auto_backup_on_start)
@@ -224,6 +236,7 @@ class BackupScreen(BaseScreen):
             item = QtWidgets.QListWidgetItem(self._format_backup_label(backup))
             item.setData(QtCore.Qt.UserRole, backup)
             self.backup_list.addItem(item)
+<<<<<<< HEAD
         self._update_restore_button_state()
 
     def _update_restore_button_state(self) -> None:
@@ -231,13 +244,19 @@ class BackupScreen(BaseScreen):
             self.restore_button.setEnabled(False)
             return
         self.restore_button.setEnabled(bool(self._get_selected_backup()))
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _format_backup_label(self, backup: Path) -> str:
         timestamp = datetime.fromtimestamp(backup.stat().st_mtime)
         return f"{backup.name} ({timestamp:%d/%m/%Y %H:%M})"
 
     def _on_selection_changed(self) -> None:
+<<<<<<< HEAD
         self._update_restore_button_state()
+=======
+        self.restore_button.setEnabled(bool(self._get_selected_backup()))
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _get_selected_backup(self) -> Path | None:
         items = self.backup_list.selectedItems()
@@ -297,16 +316,21 @@ class BackupScreen(BaseScreen):
             )
             return
 
+<<<<<<< HEAD
         self._set_busy_state(True, "Preparando restauração...")
         QtWidgets.QApplication.processEvents()
         try:
             self._prepare_for_restore()
+=======
+        try:
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             result = restore_backup(
                 backup_path,
                 self._db_path,
                 confirm_overwrite=lambda: True,
             )
         except Exception as exc:
+<<<<<<< HEAD
             self._logger.exception("Falha ao restaurar backup.")
             self._handle_restore_error(exc)
             self._restore_connections()
@@ -316,6 +340,29 @@ class BackupScreen(BaseScreen):
         self._shutting_down = True
         self._set_busy_state(False)
         self._show_restore_success(result, backup_path)
+=======
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Erro",
+                f"Não foi possível restaurar o backup: {exc}",
+            )
+            return
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Sucesso",
+            "Backup restaurado com sucesso.\n"
+            f"Arquivo restaurado: {backup_path}\n"
+            f"Backup de segurança: {result.safety_backup_path}\n"
+            "Verificação de integridade: "
+            f"{'; '.join(result.integrity_check_results)}\n\n"
+            "O aplicativo será fechado para concluir a restauração.",
+        )
+        try:
+            self._services.connection.close()
+        except Exception:
+            pass
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         app = QtWidgets.QApplication.instance()
         if app is not None:
             app.quit()

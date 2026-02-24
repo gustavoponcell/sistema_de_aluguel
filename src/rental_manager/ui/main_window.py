@@ -7,7 +7,10 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from rental_manager.paths import get_config_path
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens import (
+<<<<<<< HEAD
     AssistantScreen,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     BackupScreen,
     CustomersScreen,
     DocumentsScreen,
@@ -15,7 +18,10 @@ from rental_manager.ui.screens import (
     NewRentalScreen,
     ProductsScreen,
     RentalsScreen,
+<<<<<<< HEAD
     SettingsScreen,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 )
 from rental_manager.ui.strings import APP_NAME
 from rental_manager.utils.theme import ThemeSettings
@@ -71,9 +77,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         button_group = QtWidgets.QButtonGroup(self)
         button_group.setExclusive(True)
+<<<<<<< HEAD
         self._nav_buttons: list[QtWidgets.QPushButton] = []
         self._screen_indexes: dict[str, int] = {}
         self._settings_index: int | None = None
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
         self._finance_screen = FinanceScreen(self._services)
         self._rentals_screen = RentalsScreen(self._services)
@@ -85,8 +94,11 @@ class MainWindow(QtWidgets.QMainWindow):
             ("Financeiro", self._finance_screen),
             ("Documentos", DocumentsScreen(self._services)),
             ("Backup", BackupScreen(self._services)),
+<<<<<<< HEAD
             ("Assistente", AssistantScreen(self._services)),
             ("Configurações", SettingsScreen(self._services)),
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         ]
 
         for index, (label, screen) in enumerate(screens):
@@ -98,10 +110,13 @@ class MainWindow(QtWidgets.QMainWindow):
             button_group.addButton(button)
             sidebar_layout.addWidget(button)
             self._stack.addWidget(screen)
+<<<<<<< HEAD
             self._nav_buttons.append(button)
             self._screen_indexes[label] = index
             if label == "Configurações":
                 self._settings_index = index
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
         sidebar_layout.addStretch()
 
@@ -174,6 +189,7 @@ class MainWindow(QtWidgets.QMainWindow):
         about_action = help_menu.addAction("Sobre")
         about_action.triggered.connect(self._show_about)
 
+<<<<<<< HEAD
     def open_settings_screen(self) -> None:
         """Expose navigation so other screens can open Configurações."""
         if self._settings_index is None:
@@ -196,6 +212,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if 0 <= index < len(self._nav_buttons):
             self._nav_buttons[index].setChecked(True)
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _on_theme_selected(self, action: QtGui.QAction) -> None:
         theme_choice = action.data()
         if theme_choice not in ("light", "dark", "system"):

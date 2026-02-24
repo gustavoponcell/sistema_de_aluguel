@@ -139,6 +139,7 @@ class CustomerRepo:
             raise
         return customer_from_row(row) if row else None
 
+<<<<<<< HEAD
     def list_by_period(self, start_date: str, end_date: str) -> List[Customer]:
         try:
             rows = self._connection.execute(
@@ -159,6 +160,8 @@ class CustomerRepo:
             raise
         return [customer_from_row(row) for row in rows]
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 def _debug_run() -> None:
     configure_logging()

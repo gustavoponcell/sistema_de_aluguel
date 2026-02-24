@@ -424,19 +424,31 @@ start_date <= D < end_date
 
 **Componentes**
 - Cartão “Pedidos de hoje”.
+<<<<<<< HEAD
 - Filtros: período, status, pagamento, busca e o checkbox **“Mostrar pedidos cancelados”** (desmarcado por padrão).
 - Tabela com colunas: **Tipo**, **Data** (ou evento), **Período**, **Cliente**, **Endereço**, **Status**, **Pagamento**, **Total** e **Pago**.
 - Botões: Detalhes, Editar, Cancelar, Concluir, Registrar pagamento, Gerar contrato, Gerar recibo, Abrir último contrato e Abrir último recibo.
 
 **Ações e comportamento**
 - Por padrão a tabela (e o card “Pedidos de hoje”) **oculta pedidos cancelados** para reduzir ruído; marque “Mostrar pedidos cancelados” para incluí-los mesmo sem alterar o filtro de Status.
+=======
+- Filtros: período, status, pagamento, busca.
+- Tabela com datas, cliente, endereço, status, total e pago.
+- Botões: detalhes, editar, cancelar, concluir, registrar pagamento, gerar PDF.
+
+**Ações e comportamento**
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 - **Editar**: abre diálogo para alterar datas e itens (revalida estoque).
 - **Detalhes/Editar**: seção **Pagamentos** permite adicionar, editar e excluir pagamentos com confirmação.
 - **Cancelar**: muda status para `canceled` (não bloqueia estoque).
 - **Concluir**: muda status para `completed`.
 - **Registrar pagamento**: adiciona um registro em `payments` e recalcula o total pago.
+<<<<<<< HEAD
 - **Gerar contrato/recibo**: cria PDFs (contrato, comprovante de venda ou OS, de acordo com o tipo).
 - **Abrir último contrato/recibo**: habilitados somente quando o pedido já possui o documento correspondente salvo.
+=======
+- **Gerar PDF**: contrato ou recibo.
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 - Carregamento assíncrono da lista com placeholder de “Carregando…”.
 - Por padrão, a agenda carrega **hoje + próximos 7 dias** (filtro rápido).
 - Cache em memória por alguns segundos para alternar abas sem recarregar.
@@ -541,6 +553,7 @@ start_date <= D < end_date
 
 ---
 
+<<<<<<< HEAD
 ### 7.8 Tela: **Configura??es (Assistente)**
 **Objetivo**
 - Ativar/desativar os Fluxos Inteligentes e comunicar per?odos de manuten??o.
@@ -561,6 +574,8 @@ start_date <= D < end_date
 
 ---
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 ## 8) Documentos (Contratos / Notas / Recibos)
 
 **Onde gera**

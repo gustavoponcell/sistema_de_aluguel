@@ -20,19 +20,28 @@ from rental_manager.paths import (
     get_pdfs_dir,
 )
 from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
+<<<<<<< HEAD
 from rental_manager.services.customer_service import CustomerService
 from rental_manager.services.document_service import DocumentService
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.services.expense_service import ExpenseService
 from rental_manager.services.inventory_service import InventoryService
 from rental_manager.services.order_service import OrderService
 from rental_manager.services.payment_service import PaymentService
+<<<<<<< HEAD
 from rental_manager.services.product_service import ProductService
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.services.rental_service import RentalService
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.data_bus import DataEventBus
 from rental_manager.ui.main_window import MainWindow
 from rental_manager.utils.backup import export_backup, load_backup_settings
+<<<<<<< HEAD
 from rental_manager.utils.assistant_settings import ensure_assistant_section
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.utils.theme import ThemeManager
 from rental_manager.utils.updater import ensure_update_settings
 from rental_manager.version import __app_name__, __version__
@@ -50,6 +59,7 @@ def main() -> int:
     apply_migrations(connection)
 
     config = AppConfig()
+<<<<<<< HEAD
     config_path = get_config_path()
     logger = get_logger(__name__)
     logger.info("Starting %s v%s", __app_name__, __version__)
@@ -62,6 +72,15 @@ def main() -> int:
     except Exception:
         logger.exception("Falha ao preparar configurações do Assistente.")
     backup_settings = load_backup_settings(config_path)
+=======
+    logger = get_logger(__name__)
+    logger.info("Starting %s v%s", __app_name__, __version__)
+    try:
+        ensure_update_settings(get_config_path())
+    except Exception:
+        logger.exception("Falha ao carregar configurações de atualização.")
+    backup_settings = load_backup_settings(get_config_path())
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     if backup_settings.auto_backup_on_start:
         try:
             backup_path = export_backup(get_db_path(), get_backup_dir())
@@ -73,6 +92,7 @@ def main() -> int:
     app.setApplicationName(config.app_name)
     app.setOrganizationName(config.organization_name)
     app.setOrganizationDomain(config.organization_domain)
+<<<<<<< HEAD
     theme_manager = ThemeManager(app, config_path)
 
     data_bus = DataEventBus()
@@ -103,6 +123,21 @@ def main() -> int:
         rental_service=rental_service,
         payment_service=payment_service,
         expense_service=expense_service,
+=======
+    theme_manager = ThemeManager(app, get_config_path())
+
+    services = AppServices(
+        connection=connection,
+        data_bus=DataEventBus(),
+        customer_repo=CustomerRepo(connection),
+        document_repo=DocumentRepository(connection),
+        product_repo=ProductRepo(connection),
+        inventory_service=InventoryService(connection),
+        order_service=OrderService(connection),
+        rental_service=RentalService(connection),
+        payment_service=PaymentService(connection),
+        expense_service=ExpenseService(connection),
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         theme_manager=theme_manager,
     )
 

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import csv
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -606,7 +609,10 @@ class FinanceScreen(BaseScreen):
         start_date: str,
         end_date: str,
     ) -> SummarySnapshot:
+<<<<<<< HEAD
         fetch_start = time.perf_counter()
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         report = rental_repo.get_finance_report_by_period(
             start_date, end_date, connection=self._services.connection
         )
@@ -620,6 +626,7 @@ class FinanceScreen(BaseScreen):
         total_expenses = self._services.expense_service.get_total_by_period(
             start_date, end_date
         )
+<<<<<<< HEAD
         elapsed = time.perf_counter() - fetch_start
         self._logger.info(
             "Financeiro resumo carregado em %.3fs (período %s..%s, pedidos=%s)",
@@ -628,6 +635,8 @@ class FinanceScreen(BaseScreen):
             end_date,
             len(rentals),
         )
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         return SummarySnapshot(
             report=report,
             rentals=rentals,
@@ -855,6 +864,7 @@ class FinanceScreen(BaseScreen):
     def refresh(self) -> None:
         self._load_data()
 
+<<<<<<< HEAD
     def _should_refresh(self, category: str) -> bool:
         return category == "global" or category in {"rentals", "payments", "expenses"}
 
@@ -864,6 +874,12 @@ class FinanceScreen(BaseScreen):
         self._summary_cache.clear()
         self._charts_cache.clear()
         super()._on_data_changed(category)
+=======
+    def _on_data_changed(self) -> None:
+        self._summary_cache.clear()
+        self._charts_cache.clear()
+        super()._on_data_changed()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _current_period(self) -> tuple[str, str]:
         start_qdate = self._start_date.date()
@@ -1081,7 +1097,11 @@ class FinanceScreen(BaseScreen):
             )
             return
 
+<<<<<<< HEAD
         self._services.data_bus.emit_change("expenses")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._reset_expense_form()
 
     def _on_expense_delete(self) -> None:
@@ -1109,7 +1129,11 @@ class FinanceScreen(BaseScreen):
                 "Não foi possível excluir a despesa. Tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("expenses")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _export_csv(self) -> None:
         exports_dir = get_exports_dir()

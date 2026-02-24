@@ -9,8 +9,11 @@ from rental_manager.domain.models import Document, DocumentType
 from rental_manager.logging_config import get_logger
 from rental_manager.repositories.mappers import document_from_row
 
+<<<<<<< HEAD
 REFERENCE_DATE_EXPR = "COALESCE(reference_date, substr(created_at, 1, 10))"
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 class DocumentRepository:
     """Data access for generated rental documents."""
@@ -99,8 +102,11 @@ class DocumentRepository:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         customer_search: Optional[str] = None,
+<<<<<<< HEAD
         limit: Optional[int] = None,
         offset: int = 0,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     ) -> list[Document]:
         filters = []
         params: list[object] = []
@@ -110,11 +116,19 @@ class DocumentRepository:
             params.append(doc_type.value)
 
         if start_date:
+<<<<<<< HEAD
             filters.append(f"{REFERENCE_DATE_EXPR} >= ?")
             params.append(start_date)
 
         if end_date:
             filters.append(f"{REFERENCE_DATE_EXPR} <= ?")
+=======
+            filters.append("reference_date >= ?")
+            params.append(start_date)
+
+        if end_date:
+            filters.append("reference_date <= ?")
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             params.append(end_date)
 
         if customer_search:
@@ -126,11 +140,16 @@ class DocumentRepository:
             SELECT *
             FROM documents
             {where_clause}
+<<<<<<< HEAD
             ORDER BY {REFERENCE_DATE_EXPR} DESC, created_at DESC, id DESC
         """
         if limit is not None:
             query += " LIMIT ? OFFSET ?"
             params.extend([limit, offset])
+=======
+            ORDER BY reference_date DESC, created_at DESC, id DESC
+        """
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         try:
             rows = self._connection.execute(query, params).fetchall()
         except Exception:

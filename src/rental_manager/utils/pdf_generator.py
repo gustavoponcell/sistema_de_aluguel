@@ -122,7 +122,10 @@ def generate_document_pdf(
     doc_type: DocumentType,
     order_kind: ProductKind,
     issuer: PdfIssuerInfo = PDF_ISSUER,
+<<<<<<< HEAD
     custom_terms: str | None = None,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 ) -> Path:
     """Generate a PDF document for the given order kind."""
     rental, items, customer = rental_with_items
@@ -248,10 +251,14 @@ def generate_document_pdf(
     elements.append(values_table)
     elements.append(Spacer(1, 12))
 
+<<<<<<< HEAD
     if custom_terms and custom_terms.strip():
         terms = custom_terms.strip()
     else:
         terms = _build_terms(doc_type, order_kind)
+=======
+    terms = _build_terms(doc_type, order_kind)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     elements.append(Paragraph("Termos", styles["SectionTitle"]))
     elements.append(Paragraph(terms, styles["SmallText"]))
     elements.append(Spacer(1, 18))

@@ -8,8 +8,12 @@ from PySide6 import QtCore
 class DataEventBus(QtCore.QObject):
     """Global signal emitter for data change events."""
 
+<<<<<<< HEAD
     data_changed = QtCore.Signal(str)
 
     def emit_change(self, category: str = "global") -> None:
         """Emit a categorized data change event."""
         self.data_changed.emit(category)
+=======
+    data_changed = QtCore.Signal()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d

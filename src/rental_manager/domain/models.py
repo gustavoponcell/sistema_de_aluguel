@@ -97,8 +97,11 @@ class Rental:
     delivery_required: bool = False
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+<<<<<<< HEAD
     customer_name: Optional[str] = None
     order_date: Optional[str] = None
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 
 @dataclass(slots=True)

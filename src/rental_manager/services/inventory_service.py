@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+<<<<<<< HEAD
 import time
 from collections import defaultdict
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from datetime import date, timedelta
 from typing import Iterable, Optional
 
@@ -20,6 +23,7 @@ def _to_iso_date(value: str | date) -> str:
     return parser.isoparse(value).date().isoformat()
 
 
+<<<<<<< HEAD
 def _ensure_date_obj(value: str | date | None) -> Optional[date]:
     if value is None:
         return None
@@ -31,6 +35,8 @@ def _ensure_date_obj(value: str | date | None) -> Optional[date]:
         return None
 
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 RENTAL_BLOCKING_STATUSES = (
     RentalStatus.DRAFT.value,
     RentalStatus.CONFIRMED.value,
@@ -245,15 +251,22 @@ class InventoryService:
         start_date: str | date,
         end_date: str | date,
     ) -> None:
+<<<<<<< HEAD
         range_start = _ensure_date_obj(start_date)
         range_end = _ensure_date_obj(end_date)
         if range_start is None or range_end is None:
             raise ValueError("Informe datas válidas para o período do pedido.")
         if range_end <= range_start:
+=======
+        start = date.fromisoformat(_to_iso_date(start_date))
+        end = date.fromisoformat(_to_iso_date(end_date))
+        if end <= start:
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             raise ValueError(
                 "Não foi possível salvar: a data de término deve ser posterior à data de início."
             )
         aggregated_items = self._aggregate_items(items)
+<<<<<<< HEAD
         if not aggregated_items:
             return
         product_details = self._load_product_details(
@@ -300,16 +313,43 @@ class InventoryService:
                 continue
             if kind == ProductKind.SALE:
                 reserved_qty = sale_reserved.get(product_id, 0)
+=======
+        product_details = self._load_product_details(
+            [product_id for product_id, _ in aggregated_items]
+        )
+        current_date = start
+        while current_date < end:
+            for product_id, qty in aggregated_items:
+                product = product_details.get(product_id)
+                if not product:
+                    raise ValueError(f"Item {product_id} não encontrado.")
+                if product["kind"] in (ProductKind.SERVICE.value, ProductKind.SALE.value):
+                    continue
+                total_qty = product["total_qty"]
+                reserved_qty = self.on_loan(
+                    product_id,
+                    current_date,
+                    exclude_rental_id=rental_id,
+                )
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 available_qty = max(total_qty - reserved_qty, 0)
                 if qty > available_qty:
                     product_label = product["name"] or f"ID {product_id}"
                     raise ValueError(
+<<<<<<< HEAD
                         "Estoque insuficiente para {product}. Disponível {available}, solicitado {requested}.".format(
                             product=product_label,
+=======
+                        "Estoque insuficiente para {product} na data {day}. "
+                        "Disponível {available}, solicitado {requested}.".format(
+                            product=product_label,
+                            day=current_date.strftime("%d/%m/%Y"),
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                             available=available_qty,
                             requested=qty,
                         )
                     )
+<<<<<<< HEAD
                 continue
             # Rental products consider reserved intervals
             conflicts_for_product = conflicts_by_product.get(product_id, [])
@@ -343,6 +383,9 @@ class InventoryService:
             len(conflicts),
             elapsed,
         )
+=======
+            current_date += timedelta(days=1)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _aggregate_items(
         self, items: Iterable[tuple[int, int]]
@@ -378,6 +421,7 @@ class InventoryService:
             for row in rows
         }
 
+<<<<<<< HEAD
     def _fetch_conflicting_reservations(
         self,
         product_ids: list[int],
@@ -538,6 +582,8 @@ class InventoryService:
             raise
         return {int(row["product_id"]): int(row["reserved_qty"] or 0) for row in rows}
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def get_sale_reserved_qty(
         self, product_id: int, exclude_rental_id: Optional[int] = None
     ) -> int:
@@ -590,6 +636,7 @@ class InventoryService:
         )
         return max(total_qty - reserved_qty, 0)
 
+<<<<<<< HEAD
     def get_bulk_status_on_date(
         self,
         product_ids: Iterable[int],
@@ -648,6 +695,8 @@ class InventoryService:
             }
         return status
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def validate_sale_availability(
         self,
         items: Iterable[tuple[int, int]],

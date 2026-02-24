@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
@@ -32,9 +35,12 @@ from rental_manager.utils.pdf_generator import generate_document_pdf
 from rental_manager.utils.theme import apply_table_theme
 from rental_manager.ui.strings import product_kind_label
 
+<<<<<<< HEAD
 DEFAULT_DOCUMENT_RANGE_DAYS = 30
 DOCUMENTS_PAGE_SIZE = 50
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 def _format_date(value: Optional[str]) -> str:
     if not value:
@@ -67,10 +73,13 @@ class DocumentsScreen(BaseScreen):
         self._logger = get_logger(self.__class__.__name__)
         self._config_path = get_config_path()
         self._documents: list[Document] = []
+<<<<<<< HEAD
         self._page_size = DOCUMENTS_PAGE_SIZE
         self._current_offset = 0
         self._has_more = False
         self._default_range_active = True
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._filter_timer = QtCore.QTimer(self)
         self._filter_timer.setSingleShot(True)
         self._filter_timer.setInterval(250)
@@ -79,10 +88,14 @@ class DocumentsScreen(BaseScreen):
         self._load_documents()
 
     def refresh(self) -> None:
+<<<<<<< HEAD
         self._load_documents(reset=True)
 
     def _should_refresh(self, category: str) -> bool:
         return category == "global" or category == "documents"
+=======
+        self._load_documents()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _build_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)
@@ -139,11 +152,14 @@ class DocumentsScreen(BaseScreen):
         filters_layout.setColumnStretch(6, 1)
 
         layout.addWidget(filters_group)
+<<<<<<< HEAD
         self._default_range_hint = QtWidgets.QLabel(
             f"Sem filtro marcado, exibimos automaticamente os Ãºltimos {DEFAULT_DOCUMENT_RANGE_DAYS} dias."
         )
         self._default_range_hint.setStyleSheet("color: #666; font-size: 12px;")
         layout.addWidget(self._default_range_hint)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
         self._documents_table = QtWidgets.QTableWidget(0, 5)
         self._documents_table.setHorizontalHeaderLabels(
@@ -182,12 +198,15 @@ class DocumentsScreen(BaseScreen):
         self._status_label = QtWidgets.QLabel()
         self._status_label.setStyleSheet("color: #666;")
         layout.addWidget(self._status_label)
+<<<<<<< HEAD
         self._load_more_button = QtWidgets.QPushButton(
             f"Carregar mais {self._page_size} documentos"
         )
         self._load_more_button.setVisible(False)
         self._load_more_button.clicked.connect(self._on_load_more)
         layout.addWidget(self._load_more_button)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         layout.addStretch()
 
         self._wire_events()
@@ -198,14 +217,20 @@ class DocumentsScreen(BaseScreen):
         self._end_date_input.dateChanged.connect(self._on_filters_changed)
         self._type_combo.currentIndexChanged.connect(self._on_filters_changed)
         self._search_input.textChanged.connect(self._on_filters_changed)
+<<<<<<< HEAD
         self._update_default_hint()
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _on_date_filter_toggled(self, checked: bool) -> None:
         self._start_date_input.setEnabled(checked)
         self._end_date_input.setEnabled(checked)
+<<<<<<< HEAD
         if checked:
             self._normalize_filter_dates()
         self._update_default_hint()
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._on_filters_changed()
 
     def _on_filters_changed(self) -> None:
@@ -221,6 +246,7 @@ class DocumentsScreen(BaseScreen):
         self._search_input.clear()
         self.refresh()
 
+<<<<<<< HEAD
     def _normalize_filter_dates(self) -> None:
         if self._start_date_input.date() > self._end_date_input.date():
             self._end_date_input.setDate(self._start_date_input.date())
@@ -326,11 +352,38 @@ class DocumentsScreen(BaseScreen):
         self._status_label.setText(
             f"Exibindo {len(self._documents)} documento(s){range_hint}."
         )
+=======
+    def _load_documents(self) -> None:
+        doc_type = self._type_combo.currentData()
+        start_date = None
+        end_date = None
+        if self._date_filter_check.isChecked():
+            start_date = self._start_date_input.date().toString("yyyy-MM-dd")
+            end_date = self._end_date_input.date().toString("yyyy-MM-dd")
+        search = self._search_input.text().strip() or None
+
+        self._documents = self._services.document_repo.list_documents(
+            doc_type=doc_type,
+            start_date=start_date,
+            end_date=end_date,
+            customer_search=search,
+        )
+        self._render_documents()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
     def _render_documents(self) -> None:
         self._documents_table.setRowCount(0)
         if not self._documents:
+<<<<<<< HEAD
             return
+=======
+            self._status_label.setText("Nenhum documento encontrado.")
+            return
+
+        self._status_label.setText(
+            f"{len(self._documents)} documento(s) encontrado(s)."
+        )
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._documents_table.setRowCount(len(self._documents))
         for row, document in enumerate(self._documents):
             display_date = document.reference_date or document.created_at
@@ -494,8 +547,13 @@ class DocumentsScreen(BaseScreen):
                     notes=f"Reexportado ({product_kind_label(order_kind)})",
                 )
             )
+<<<<<<< HEAD
             self._services.data_bus.emit_change("documents")
             self._load_documents(reset=True)
+=======
+            self._services.data_bus.data_changed.emit()
+            self._load_documents()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             self._logger.exception("Falha ao reexportar documento.")
             QtWidgets.QMessageBox.critical(

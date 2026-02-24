@@ -8,7 +8,11 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+<<<<<<< HEAD
 from typing import Callable, Iterable, Optional
+=======
+from typing import Callable, Iterable
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 from rental_manager.config import BACKUP_RETENTION_COUNT
 from rental_manager.paths import get_backup_dir
@@ -108,16 +112,22 @@ def restore_backup(
     try:
         source.backup(destination)
         destination.commit()
+<<<<<<< HEAD
     except sqlite3.Error as exc:
         raise RuntimeError(f"Falha ao gravar o banco restaurado: {exc}") from exc
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     finally:
         destination.close()
         source.close()
     integrity_results = run_integrity_check(database_path)
+<<<<<<< HEAD
     if not integrity_results:
         raise RuntimeError("integrity_check não retornou resultados.")
     if any(result.lower() != "ok" for result in integrity_results):
         raise RuntimeError("integrity_check falhou: " + '; '.join(integrity_results))
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     logger.info(
         "Resultado do integrity_check após restauração: %s",
         "; ".join(integrity_results),
@@ -129,6 +139,7 @@ def restore_backup(
     )
 
 
+<<<<<<< HEAD
 def prepare_for_restore(connection: Optional[sqlite3.Connection]) -> None:
     """Flush logs and close the main SQLite connection prior to restore."""
     logger.info("Preparando aplicação para restauração do banco de dados.")
@@ -145,6 +156,8 @@ def prepare_for_restore(connection: Optional[sqlite3.Connection]) -> None:
             logger.warning("Falha ao fechar conexão principal antes da restauração: %s", exc)
 
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 def list_backups(backup_dir: Path | str) -> list[Path]:
     """Return a list of backup files sorted by newest first."""
     target_dir = Path(backup_dir)

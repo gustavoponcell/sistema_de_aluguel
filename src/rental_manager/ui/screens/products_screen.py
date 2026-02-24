@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from typing import List, Optional
 
 from PySide6 import QtCore, QtWidgets
 
 from rental_manager.domain.models import Product, ProductKind, SERVICE_DEFAULT_QTY
+<<<<<<< HEAD
 from rental_manager.logging_config import get_logger
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.strings import (
@@ -23,7 +29,10 @@ from rental_manager.ui.strings import (
     product_kind_label,
 )
 from rental_manager.utils.theme import apply_table_theme
+<<<<<<< HEAD
 from rental_manager.services.errors import ValidationError
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 
 class ProductDialog(QtWidgets.QDialog):
@@ -164,7 +173,10 @@ class ProductsScreen(BaseScreen):
 
     def __init__(self, services: AppServices) -> None:
         super().__init__(services)
+<<<<<<< HEAD
         self._logger = get_logger(self.__class__.__name__)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._products: List[Product] = []
         self._search_timer = QtCore.QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -248,9 +260,12 @@ class ProductsScreen(BaseScreen):
         )
         layout.addWidget(self.table)
 
+<<<<<<< HEAD
     def _should_refresh(self, category: str) -> bool:
         return category == "global" or category in {"products", "rentals", "inventory"}
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _on_search_changed(self, text: str) -> None:
         self._pending_search = text
         self._search_timer.start()
@@ -262,6 +277,7 @@ class ProductsScreen(BaseScreen):
         self._load_products(getattr(self, "_pending_search", self.search_input.text()))
 
     def _load_products(self, term: str = "") -> None:
+<<<<<<< HEAD
         product_service = self._services.product_service
         try:
             if term.strip():
@@ -271,6 +287,13 @@ class ProductsScreen(BaseScreen):
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, TITLE_WARNING, str(exc))
             return
+=======
+        try:
+            if term.strip():
+                products = self._services.product_repo.search_by_name(term)
+            else:
+                products = self._services.product_repo.list_active()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -283,6 +306,7 @@ class ProductsScreen(BaseScreen):
 
     def _render_table(self, products: List[Product]) -> None:
         reference_date = self.reference_date_input.date().toPython()
+<<<<<<< HEAD
         product_ids = [
             product.id for product in products if product.id and product.kind != ProductKind.SERVICE
         ]
@@ -325,13 +349,58 @@ class ProductsScreen(BaseScreen):
                     product.total_qty if available_qty is None else available_qty
                 )
                 available_display = str(available_value)
+=======
+        self.table.setRowCount(len(products))
+        for row, product in enumerate(products):
+            is_service = product.kind == ProductKind.SERVICE
+            is_sale = product.kind == ProductKind.SALE
+            if is_service:
+                reserved_qty = None
+                available_qty = None
+            elif is_sale:
+                reserved_qty = None
+                available_qty = self._services.inventory_service.get_sale_available_qty(
+                    product.id or 0
+                )
+            else:
+                reserved_qty = self._services.inventory_service.on_loan(
+                    product.id or 0, reference_date
+                )
+                available_qty = self._services.inventory_service.available(
+                    product.id or 0, reference_date
+                )
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(product.name))
             self.table.setItem(
                 row, 1, QtWidgets.QTableWidgetItem(product_kind_label(product.kind))
             )
+<<<<<<< HEAD
             self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(total_display))
             self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(reserved_display))
             self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(available_display))
+=======
+            self.table.setItem(
+                row,
+                2,
+                QtWidgets.QTableWidgetItem(
+                    "—" if is_service else str(product.total_qty)
+                ),
+            )
+            self.table.setItem(
+                row,
+                3,
+                QtWidgets.QTableWidgetItem("—" if reserved_qty is None else str(reserved_qty)),
+            )
+            self.table.setItem(
+                row,
+                4,
+                QtWidgets.QTableWidgetItem(
+                    "Sem controle de estoque"
+                    if is_service
+                    else str(available_qty)
+                ),
+            )
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.table.setSortingEnabled(False)
         self.table.resizeRowsToContents()
         self._on_selection_changed()
@@ -356,7 +425,11 @@ class ProductsScreen(BaseScreen):
             return
         data = dialog.get_data()
         try:
+<<<<<<< HEAD
             self._services.product_service.create_product(
+=======
+            self._services.product_repo.create(
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 name=str(data["name"]),
                 category=str(data["category"]),
                 total_qty=int(data["total_qty"]),
@@ -364,9 +437,12 @@ class ProductsScreen(BaseScreen):
                 kind=data["kind"],
                 active=True,
             )
+<<<<<<< HEAD
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, TITLE_WARNING, str(exc))
             return
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -374,8 +450,12 @@ class ProductsScreen(BaseScreen):
                 "Não foi possível salvar o item. Verifique os dados e tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("products")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_products(self.search_input.text())
 
     def _on_edit(self) -> None:
@@ -387,7 +467,11 @@ class ProductsScreen(BaseScreen):
             return
         data = dialog.get_data()
         try:
+<<<<<<< HEAD
             updated = self._services.product_service.update_product(
+=======
+            updated = self._services.product_repo.update(
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 product_id=product.id or 0,
                 name=str(data["name"]),
                 category=str(data["category"]),
@@ -396,9 +480,12 @@ class ProductsScreen(BaseScreen):
                 kind=data["kind"],
                 active=True,
             )
+<<<<<<< HEAD
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, TITLE_WARNING, str(exc))
             return
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -412,8 +499,12 @@ class ProductsScreen(BaseScreen):
                 TITLE_WARNING,
                 "O item não foi encontrado para atualização.",
             )
+<<<<<<< HEAD
         self._services.data_bus.emit_change("products")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_products(self.search_input.text())
 
     def _on_deactivate(self) -> None:
@@ -429,10 +520,14 @@ class ProductsScreen(BaseScreen):
         if response != QtWidgets.QMessageBox.Yes:
             return
         try:
+<<<<<<< HEAD
             self._services.product_service.deactivate_product(product.id or 0)
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, TITLE_WARNING, str(exc))
             return
+=======
+            success = self._services.product_repo.soft_delete(product.id or 0)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -440,6 +535,16 @@ class ProductsScreen(BaseScreen):
                 "Não foi possível desativar o item. Tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("products")
         self._services.data_bus.emit_change("inventory")
+=======
+        if not success:
+            QtWidgets.QMessageBox.warning(
+                self,
+                TITLE_WARNING,
+                "O item já estava desativado ou não foi encontrado.",
+            )
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_products(self.search_input.text())

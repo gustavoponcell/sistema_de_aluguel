@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, timedelta
+<<<<<<< HEAD
 from typing import Iterable, Optional, Sequence
 
 from rental_manager.db.connection import transaction
@@ -11,6 +12,14 @@ from rental_manager.domain.models import PaymentStatus, Rental, RentalItem, Rent
 from rental_manager.logging_config import get_logger
 from rental_manager.repositories import payment_repo, rental_repo
 from rental_manager.repositories.rental_repo import FinanceReport, RentalFinanceRow
+=======
+from typing import Iterable, Optional
+
+from rental_manager.db.connection import transaction
+from rental_manager.domain.models import Rental, RentalItem, RentalStatus
+from rental_manager.logging_config import get_logger
+from rental_manager.repositories import payment_repo, rental_repo
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.services.errors import NotFoundError, ValidationError
 from rental_manager.services.order_service import OrderService
 
@@ -161,6 +170,7 @@ class RentalService:
             raise NotFoundError(f"Pedido {rental_id} não encontrado.")
         return True
 
+<<<<<<< HEAD
     def list_rentals_for_selection(
         self,
         *,
@@ -227,6 +237,8 @@ class RentalService:
             connection=self._connection,
         )
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def cancel_rental(self, rental_id: int) -> bool:
         updated = rental_repo.set_status(
             rental_id, RentalStatus.CANCELED, connection=self._connection

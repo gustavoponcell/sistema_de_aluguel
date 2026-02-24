@@ -27,12 +27,19 @@ from rental_manager.domain.models import (
 )
 from rental_manager.logging_config import get_logger
 from rental_manager.paths import get_config_path, get_db_path
+<<<<<<< HEAD
 from rental_manager.repositories import rental_repo
 from rental_manager.services.errors import ValidationError
 from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.utils.assistant_audit import log_assistant_event
 from rental_manager.utils.document_drafts import load_draft
+=======
+from rental_manager.repositories import CustomerRepo, rental_repo
+from rental_manager.services.errors import ValidationError
+from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.screens.base_screen import BaseScreen
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.utils.documents import (
     DocumentsSettings,
     build_document_filename,
@@ -42,7 +49,10 @@ from rental_manager.utils.documents import (
 from rental_manager.utils.pdf_generator import generate_document_pdf
 from rental_manager.utils.theme import apply_table_theme
 from rental_manager.ui.widgets import InfoBanner
+<<<<<<< HEAD
 from rental_manager.ui.widgets.document_text_dialog import DocumentTextDialog
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 from rental_manager.ui.strings import (
     TERM_ITEM,
     TERM_ORDER_LOWER,
@@ -137,6 +147,7 @@ def _payment_label(status: PaymentStatus) -> str:
     return mapping.get(status, status.value)
 
 
+<<<<<<< HEAD
 VISIBLE_STATUSES_EXCLUDING_CANCELED: Tuple[RentalStatus, ...] = (
     RentalStatus.DRAFT,
     RentalStatus.CONFIRMED,
@@ -144,6 +155,8 @@ VISIBLE_STATUSES_EXCLUDING_CANCELED: Tuple[RentalStatus, ...] = (
 )
 
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 def _show_warning(parent: QtWidgets.QWidget, message: str) -> None:
     QtWidgets.QMessageBox.warning(parent, TITLE_WARNING, message)
 
@@ -190,10 +203,17 @@ class RentalsLoadResult:
         Optional[RentalStatus],
         Optional[PaymentStatus],
         Optional[str],
+<<<<<<< HEAD
         Optional[Tuple[RentalStatus, ...]],
     ]
     rentals: List[Rental]
     rentals_today: List[Rental]
+=======
+    ]
+    rentals: List[Rental]
+    rentals_today: List[Rental]
+    customers_map: dict[int, str]
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     rental_kinds: dict[int, ProductKind]
     timings: dict[str, float]
 
@@ -218,7 +238,10 @@ class RentalsLoadTask(QtCore.QRunnable):
         start_date: Optional[str],
         end_date: Optional[str],
         status: Optional[RentalStatus],
+<<<<<<< HEAD
         statuses: Optional[Tuple[RentalStatus, ...]],
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         payment_status: Optional[PaymentStatus],
         search: Optional[str],
         today: str,
@@ -229,7 +252,10 @@ class RentalsLoadTask(QtCore.QRunnable):
         self.start_date = start_date
         self.end_date = end_date
         self.status = status
+<<<<<<< HEAD
         self.statuses = statuses
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.payment_status = payment_status
         self.search = search
         self.today = today
@@ -246,7 +272,10 @@ class RentalsLoadTask(QtCore.QRunnable):
                 start_date=self.start_date,
                 end_date=self.end_date,
                 status=self.status,
+<<<<<<< HEAD
                 statuses=self.statuses,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 payment_status=self.payment_status,
                 search=self.search,
                 connection=connection,
@@ -254,7 +283,10 @@ class RentalsLoadTask(QtCore.QRunnable):
             rentals_today = rental_repo.list_rentals(
                 start_date=self.today,
                 end_date=self.today,
+<<<<<<< HEAD
                 statuses=self.statuses,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 connection=connection,
             )
             rental_ids = [
@@ -264,6 +296,7 @@ class RentalsLoadTask(QtCore.QRunnable):
                 rental_ids,
                 connection=connection,
             )
+<<<<<<< HEAD
             query_time = time.perf_counter() - query_start
 
             transform_time = 0.0
@@ -279,6 +312,16 @@ class RentalsLoadTask(QtCore.QRunnable):
                 len(rentals_today),
                 query_time,
             )
+=======
+            customers = CustomerRepo(connection).list_all()
+            query_time = time.perf_counter() - query_start
+
+            transform_start = time.perf_counter()
+            customers_map = {
+                customer.id or 0: customer.name for customer in customers
+            }
+            transform_time = time.perf_counter() - transform_start
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
             total_time = time.perf_counter() - start_time
             timings = {
@@ -291,6 +334,10 @@ class RentalsLoadTask(QtCore.QRunnable):
                 cache_key=self.cache_key,
                 rentals=rentals,
                 rentals_today=rentals_today,
+<<<<<<< HEAD
+=======
+                customers_map=customers_map,
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 rental_kinds=rental_kinds,
                 timings=timings,
             )
@@ -487,7 +534,10 @@ class PaymentEntryDialog(QtWidgets.QDialog):
             self.method_input.setText(self._payment.method)
 
         self.paid_at_check = QtWidgets.QCheckBox("Definir data/hora")
+<<<<<<< HEAD
         self.paid_at_check.setToolTip("Se desmarcar, o sistema usa a data/hora atual.")
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.paid_at_input = QtWidgets.QDateTimeEdit()
         self.paid_at_input.setCalendarPopup(True)
         self.paid_at_input.setDisplayFormat("dd/MM/yyyy HH:mm")
@@ -514,9 +564,12 @@ class PaymentEntryDialog(QtWidgets.QDialog):
             self.paid_at_check.setChecked(True)
         self.paid_at_input.setEnabled(self.paid_at_check.isChecked())
         self.paid_at_check.toggled.connect(self.paid_at_input.setEnabled)
+<<<<<<< HEAD
         self.paid_at_hint = QtWidgets.QLabel("Sem data definida, usamos o horário atual.")
         self.paid_at_hint.setStyleSheet("color: #666; font-size: 12px;")
         form.addRow("", self.paid_at_hint)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
         self.note_input = QtWidgets.QPlainTextEdit()
         self.note_input.setPlaceholderText("Observações sobre o pagamento")
@@ -713,7 +766,11 @@ class PaymentsSection(QtWidgets.QGroupBox):
 
     def _notify_change(self) -> None:
         self._load_payments()
+<<<<<<< HEAD
         self._services.data_bus.emit_change("payments")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         if self._on_change:
             self._on_change()
 
@@ -1336,8 +1393,12 @@ class RentalEditDialog(QtWidgets.QDialog):
         except Exception:
             _show_error(self, "Não foi possível atualizar o pedido. Tente novamente.")
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("rentals")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.accept()
 
 
@@ -1347,6 +1408,10 @@ class RentalsScreen(BaseScreen):
     def __init__(self, services: AppServices) -> None:
         super().__init__(services)
         self._rentals: List[Rental] = []
+<<<<<<< HEAD
+=======
+        self._customers_map: dict[int, str] = {}
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._rental_kinds: dict[int, ProductKind] = {}
         self._logger = get_logger("Agenda")
         self._config_path = get_config_path()
@@ -1359,12 +1424,18 @@ class RentalsScreen(BaseScreen):
                 Optional[RentalStatus],
                 Optional[PaymentStatus],
                 Optional[str],
+<<<<<<< HEAD
                 Optional[Tuple[RentalStatus, ...]],
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             ],
             Tuple[float, RentalsLoadResult],
         ] = {}
         self._cache_ttl_seconds = 8.0
+<<<<<<< HEAD
         self._last_data_change_ts = 0.0
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._latest_documents: dict[DocumentType, Optional[Document]] = {
             DocumentType.CONTRACT: None,
             DocumentType.RECEIPT: None,
@@ -1428,8 +1499,11 @@ class RentalsScreen(BaseScreen):
         self.payment_combo.addItem("Parcial", PaymentStatus.PARTIAL)
         self.payment_combo.addItem("Pago", PaymentStatus.PAID)
 
+<<<<<<< HEAD
         self.show_canceled_check = QtWidgets.QCheckBox("Mostrar pedidos cancelados")
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.search_input = QtWidgets.QLineEdit()
         self.search_input.setPlaceholderText("Cliente ou endereço")
 
@@ -1449,7 +1523,10 @@ class RentalsScreen(BaseScreen):
         filters_layout.addWidget(QtWidgets.QLabel("Busca"), 2, 0)
         filters_layout.addWidget(self.search_input, 2, 1, 1, 3)
         filters_layout.addWidget(self.clear_filters_button, 2, 4)
+<<<<<<< HEAD
         filters_layout.addWidget(self.show_canceled_check, 3, 0, 1, 2)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         filters_layout.setColumnStretch(5, 1)
 
         layout.addWidget(filters_group)
@@ -1562,7 +1639,10 @@ class RentalsScreen(BaseScreen):
         self.status_combo.currentIndexChanged.connect(self._on_filters_changed)
         self.payment_combo.currentIndexChanged.connect(self._on_filters_changed)
         self.search_input.textChanged.connect(self._on_filters_changed)
+<<<<<<< HEAD
         self.show_canceled_check.toggled.connect(self._on_filters_changed)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.date_filter_check.toggled.connect(self._toggle_date_filter)
 
         self.setStyleSheet(
@@ -1590,6 +1670,7 @@ class RentalsScreen(BaseScreen):
             """
         )
 
+<<<<<<< HEAD
     def _should_refresh(self, category: str) -> bool:
         if category == "global":
             self._last_data_change_ts = time.time()
@@ -1599,6 +1680,8 @@ class RentalsScreen(BaseScreen):
             return True
         return False
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _set_actions_enabled(self, enabled: bool) -> None:
         self.details_button.setEnabled(enabled)
         self.edit_button.setEnabled(enabled)
@@ -1645,7 +1728,10 @@ class RentalsScreen(BaseScreen):
         self.end_date_input.setDate(today)
         self.status_combo.setCurrentIndex(0)
         self.payment_combo.setCurrentIndex(0)
+<<<<<<< HEAD
         self.show_canceled_check.setChecked(False)
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self.search_input.clear()
         self._load_rentals()
 
@@ -1673,6 +1759,7 @@ class RentalsScreen(BaseScreen):
     def _load_rentals(self) -> None:
         start_date, end_date = self._effective_period()
         status = self.status_combo.currentData()
+<<<<<<< HEAD
         include_canceled = self.show_canceled_check.isChecked()
         status_filters: Optional[Tuple[RentalStatus, ...]] = None
         if status is None and not include_canceled:
@@ -1695,6 +1782,15 @@ class RentalsScreen(BaseScreen):
             and cached[0] >= self._last_data_change_ts
             and now - cached[0] <= self._cache_ttl_seconds
         ):
+=======
+        payment_status = self.payment_combo.currentData()
+        search = self.search_input.text().strip() or None
+        cache_key = (start_date, end_date, status, payment_status, search)
+
+        cached = self._agenda_cache.get(cache_key)
+        now = time.time()
+        if cached and now - cached[0] <= self._cache_ttl_seconds:
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self._logger.info("Agenda cache hit para o período atual.")
             self._apply_load_result(cached[1], cache_hit=True)
             return
@@ -1709,7 +1805,10 @@ class RentalsScreen(BaseScreen):
             start_date=start_date,
             end_date=end_date,
             status=status,
+<<<<<<< HEAD
             statuses=status_filters,
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             payment_status=payment_status,
             search=search,
             today=today,
@@ -1735,6 +1834,10 @@ class RentalsScreen(BaseScreen):
 
     def _apply_load_result(self, result: RentalsLoadResult, *, cache_hit: bool) -> None:
         render_start = time.perf_counter()
+<<<<<<< HEAD
+=======
+        self._customers_map = result.customers_map
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._rentals = result.rentals
         self._rental_kinds = result.rental_kinds
         self._render_table()
@@ -1762,7 +1865,11 @@ class RentalsScreen(BaseScreen):
         self.today_banner.set_subtitle(f"{count} {label} para hoje.")
         items = []
         for rental in rentals_today[:5]:
+<<<<<<< HEAD
             customer_name = rental.customer_name or "—"
+=======
+            customer_name = self._customers_map.get(rental.customer_id, "—")
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
             items.append(
                 f"{html.escape(customer_name)} — "
@@ -1784,7 +1891,11 @@ class RentalsScreen(BaseScreen):
         for row, rental in enumerate(self._rentals):
             kind = self._rental_kinds.get(rental.id or 0, ProductKind.RENTAL)
             period_label = self._format_period(rental, kind)
+<<<<<<< HEAD
             customer_name = rental.customer_name or "—"
+=======
+            customer_name = self._customers_map.get(rental.customer_id, "—")
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self.table.setItem(
                 row, 0, QtWidgets.QTableWidgetItem(product_kind_label(kind))
             )
@@ -1916,8 +2027,12 @@ class RentalsScreen(BaseScreen):
         except Exception:
             _show_error(self, "Não foi possível cancelar o pedido. Tente novamente.")
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("rentals")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_rentals()
 
     def _on_complete(self) -> None:
@@ -1931,8 +2046,12 @@ class RentalsScreen(BaseScreen):
         except Exception:
             _show_error(self, "Não foi possível concluir o pedido. Tente novamente.")
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("rentals")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_rentals()
 
     def _on_payment(self) -> None:
@@ -1954,7 +2073,11 @@ class RentalsScreen(BaseScreen):
         except Exception:
             _show_error(self, "Não foi possível registrar o pagamento. Tente novamente.")
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("payments")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_rentals()
 
     def _set_open_button_state(
@@ -2072,6 +2195,7 @@ class RentalsScreen(BaseScreen):
         rental = self._get_selected_rental()
         if not rental or not rental.id:
             return
+<<<<<<< HEAD
         custom_terms: Optional[str] = None
         draft = load_draft(doc_type)
         if draft:
@@ -2110,6 +2234,8 @@ class RentalsScreen(BaseScreen):
                         "Informe algum conteúdo para os termos personalizados.",
                     )
                     return
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         try:
             rental_payload = self._build_pdf_payload(rental.id)
             documents_dir = self._ensure_documents_dir()
@@ -2130,12 +2256,17 @@ class RentalsScreen(BaseScreen):
                 output_path,
                 doc_type=doc_type,
                 order_kind=order_kind,
+<<<<<<< HEAD
                 custom_terms=custom_terms,
             )
             created_at = datetime.now().isoformat(timespec="seconds")
             notes_text = f"Tipo pedido: {product_kind_label(order_kind)}"
             if custom_terms:
                 notes_text += " | Termos assistente"
+=======
+            )
+            created_at = datetime.now().isoformat(timespec="seconds")
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             self._services.document_repo.add(
                 Document(
                     id=None,
@@ -2146,6 +2277,7 @@ class RentalsScreen(BaseScreen):
                     file_name=output_path.name,
                     file_path=str(output_path),
                     order_id=rental.id,
+<<<<<<< HEAD
                     notes=notes_text,
                 )
             )
@@ -2153,6 +2285,13 @@ class RentalsScreen(BaseScreen):
             self._services.data_bus.emit_change("documents")
             if custom_terms:
                 log_assistant_event(f"generate_document:{doc_type.value}")
+=======
+                    notes=f"Tipo pedido: {product_kind_label(order_kind)}",
+                )
+            )
+            self._update_document_buttons(rental.id)
+            self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             _show_error(self, "Não foi possível gerar o PDF. Tente novamente.")
             return

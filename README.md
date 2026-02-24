@@ -58,12 +58,15 @@ O banco SQLite fica na pasta de dados do usuário, em `%APPDATA%\\RentalManager`
 
 > Dica: para um pedido de um único dia, informe a devolução no dia seguinte.
 
+<<<<<<< HEAD
 ## Agenda — pedidos cancelados
 
 - A lista da Agenda oculta pedidos **cancelados** por padrão para focar nos trabalhos ativos.
 - Marque o checkbox **“Mostrar pedidos cancelados”** nos filtros para incluir esses pedidos na tabela e no card “Pedidos de hoje”.
 - O seletor **Status** continua disponível para filtrar rascunhos, confirmados ou concluídos; ao marcar a opção de cancelados você pode combinar os dois filtros (ex.: mostrar apenas cancelados dentro de um período).
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 ## Teste manual básico
 
 1) Cadastrar um serviço no Estoque:
@@ -155,6 +158,7 @@ Lá ficam o banco (`rental_manager.db`), backups (`backups\`), logs (`logs\`) e 
 - Confirmar criação de logs em `%APPDATA%\RentalManager\logs\`.
 - Criar um pedido de teste e gerar PDF na pasta configurada em `documents_dir`.
 - Executar backup e verificar arquivo em `%APPDATA%\RentalManager\backups\`.
+<<<<<<< HEAD
 
 ## Assistente (Fluxos Inteligentes offline)
 
@@ -179,3 +183,5 @@ O `config.json` agora inclui o bloco:
 
 Esses valores podem ser ajustados diretamente pelo app. Se `flows_enabled` for `false`, a tela do assistente bloqueia os fluxos e exibe `disabled_message` no banner.
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d

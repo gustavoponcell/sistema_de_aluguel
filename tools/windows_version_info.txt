@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿# UTF-8
+=======
+# UTF-8
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=(0, 1, 0, 0),
@@ -16,12 +20,21 @@ VSVersionInfo(
         StringTable(
           '040904B0',
           [
+<<<<<<< HEAD
             StringStruct('CompanyName', 'GestÃ£o Inteligente'),
             StringStruct('FileDescription', 'GestÃ£o Inteligente'),
             StringStruct('FileVersion', '0.1.0'),
             StringStruct('InternalName', 'GestaoInteligente'),
             StringStruct('OriginalFilename', 'GestaoInteligente.exe'),
             StringStruct('ProductName', 'GestÃ£o Inteligente'),
+=======
+            StringStruct('CompanyName', 'Gestão Inteligente'),
+            StringStruct('FileDescription', 'Gestão Inteligente'),
+            StringStruct('FileVersion', '0.1.0'),
+            StringStruct('InternalName', 'GestaoInteligente'),
+            StringStruct('OriginalFilename', 'GestaoInteligente.exe'),
+            StringStruct('ProductName', 'Gestão Inteligente'),
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
             StringStruct('ProductVersion', '0.1.0')
           ]
         )
@@ -30,7 +43,10 @@ VSVersionInfo(
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
 )
+<<<<<<< HEAD
 
 
 
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d

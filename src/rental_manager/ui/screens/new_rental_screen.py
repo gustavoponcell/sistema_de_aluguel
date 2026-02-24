@@ -381,8 +381,12 @@ class NewRentalScreen(BaseScreen):
                 "Não foi possível salvar o cliente. Verifique os dados e tente novamente."
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("rentals")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         self._load_customers()
         if customer and customer.id:
             index = self.customer_combo.findData(customer.id)
@@ -652,8 +656,12 @@ class NewRentalScreen(BaseScreen):
                 "Não foi possível salvar o pedido. Verifique os dados e tente novamente."
             )
             return False
+<<<<<<< HEAD
         self._services.data_bus.emit_change("rentals")
         self._services.data_bus.emit_change("inventory")
+=======
+        self._services.data_bus.data_changed.emit()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         return True
 
     def _on_save_draft(self) -> None:

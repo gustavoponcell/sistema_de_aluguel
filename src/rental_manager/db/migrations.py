@@ -461,6 +461,7 @@ MIGRATIONS: list[Migration] = [
             ON documents(order_id);
         """,
     ),
+<<<<<<< HEAD
     Migration(
         version=10,
         script="""
@@ -477,6 +478,8 @@ MIGRATIONS: list[Migration] = [
             ON customers(name);
         """,
     ),
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 ]
 
 

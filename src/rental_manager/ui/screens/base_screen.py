@@ -19,17 +19,24 @@ class BaseScreen(QtWidgets.QWidget):
     def refresh(self) -> None:
         """Reload data for this screen."""
 
+<<<<<<< HEAD
     def _on_data_changed(self, category: str) -> None:
         if not self._should_refresh(category):
             return
+=======
+    def _on_data_changed(self) -> None:
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         if self.isVisible():
             self.refresh()
         else:
             self._needs_refresh = True
 
+<<<<<<< HEAD
     def _should_refresh(self, category: str) -> bool:
         return True
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def showEvent(self, event: QtWidgets.QShowEvent) -> None:  # type: ignore[name-defined]
         super().showEvent(event)
         if self._needs_refresh:

@@ -95,8 +95,11 @@ def rental_from_row(row: sqlite3.Row) -> Rental:
         payment_status=PaymentStatus(row["payment_status"]),
         created_at=_row_value(row, "created_at"),
         updated_at=_row_value(row, "updated_at"),
+<<<<<<< HEAD
         customer_name=_row_value(row, "customer_name"),
         order_date=_row_value(row, "order_date"),
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     )
 
 

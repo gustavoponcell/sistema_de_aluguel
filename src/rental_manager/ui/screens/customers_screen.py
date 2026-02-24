@@ -11,7 +11,10 @@ from rental_manager.ui.app_services import AppServices
 from rental_manager.ui.screens.base_screen import BaseScreen
 from rental_manager.ui.strings import TITLE_ERROR, TITLE_WARNING
 from rental_manager.utils.theme import apply_table_theme
+<<<<<<< HEAD
 from rental_manager.services.errors import NotFoundError, ValidationError
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
 
 
 class CustomerDialog(QtWidgets.QDialog):
@@ -163,6 +166,7 @@ class CustomersScreen(BaseScreen):
     def refresh(self) -> None:
         self._load_customers(getattr(self, "_pending_search", self.search_input.text()))
 
+<<<<<<< HEAD
     def _should_refresh(self, category: str) -> bool:
         return category == "global" or category == "customers"
 
@@ -176,6 +180,14 @@ class CustomersScreen(BaseScreen):
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, TITLE_WARNING, str(exc))
             return
+=======
+    def _load_customers(self, term: str = "") -> None:
+        try:
+            if term.strip():
+                customers = self._services.customer_repo.search_by_name(term)
+            else:
+                customers = self._services.customer_repo.list_all()
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -186,7 +198,10 @@ class CustomersScreen(BaseScreen):
         self._customers = customers
         self._render_table(customers)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _render_table(self, customers: List[Customer]) -> None:
         self.table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
@@ -225,14 +240,21 @@ class CustomersScreen(BaseScreen):
             return
         data = dialog.get_data()
         try:
+<<<<<<< HEAD
             self._services.customer_service.create_customer(
+=======
+            self._services.customer_repo.create(
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 name=data["name"] or "",
                 phone=data["phone"],
                 notes=data["notes"],
             )
+<<<<<<< HEAD
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, "Atenção", str(exc))
             return
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -240,10 +262,16 @@ class CustomersScreen(BaseScreen):
                 "Não foi possível salvar o cliente. Verifique os dados e tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("customers")
         self._load_customers(self.search_input.text())
 
 
+=======
+        self._services.data_bus.data_changed.emit()
+        self._load_customers(self.search_input.text())
+
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _on_edit(self) -> None:
         customer = self._get_selected_customer()
         if not customer:
@@ -253,12 +281,17 @@ class CustomersScreen(BaseScreen):
             return
         data = dialog.get_data()
         try:
+<<<<<<< HEAD
             updated = self._services.customer_service.update_customer(
+=======
+            updated = self._services.customer_repo.update(
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
                 customer_id=customer.id or 0,
                 name=data["name"] or "",
                 phone=data["phone"],
                 notes=data["notes"],
             )
+<<<<<<< HEAD
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, "Atenção", str(exc))
             return
@@ -269,6 +302,8 @@ class CustomersScreen(BaseScreen):
                 "O cliente não foi encontrado para atualização.",
             )
             return
+=======
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -276,10 +311,22 @@ class CustomersScreen(BaseScreen):
                 "Não foi possível atualizar o cliente. Tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("customers")
         self._load_customers(self.search_input.text())
 
 
+=======
+        if not updated:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Atenção",
+                "O cliente não foi encontrado para atualização.",
+            )
+        self._services.data_bus.data_changed.emit()
+        self._load_customers(self.search_input.text())
+
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
     def _on_delete(self) -> None:
         customer = self._get_selected_customer()
         if not customer:
@@ -293,6 +340,7 @@ class CustomersScreen(BaseScreen):
         if response != QtWidgets.QMessageBox.Yes:
             return
         try:
+<<<<<<< HEAD
             self._services.customer_service.delete_customer(customer.id or 0)
         except NotFoundError:
             QtWidgets.QMessageBox.warning(
@@ -301,6 +349,9 @@ class CustomersScreen(BaseScreen):
                 "O cliente já havia sido removido ou não foi encontrado.",
             )
             return
+=======
+            success = self._services.customer_repo.delete(customer.id or 0)
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
         except Exception:
             QtWidgets.QMessageBox.critical(
                 self,
@@ -308,6 +359,17 @@ class CustomersScreen(BaseScreen):
                 "Não foi possível excluir o cliente. Tente novamente.",
             )
             return
+<<<<<<< HEAD
         self._services.data_bus.emit_change("customers")
         self._load_customers(self.search_input.text())
 
+=======
+        if not success:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Atenção",
+                "O cliente já havia sido removido ou não foi encontrado.",
+            )
+        self._services.data_bus.data_changed.emit()
+        self._load_customers(self.search_input.text())
+>>>>>>> fedafe265492a1d0f264429ebdab496eddc6884d
