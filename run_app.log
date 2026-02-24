@@ -1,0 +1,37 @@
+[ETAPA] Indo para a raiz do projeto...
+[ETAPA] Validando arquivos e pastas obrigatorios...
+[ETAPA] Verificando Python no PATH...
+[ETAPA] Criando ambiente virtual (se necessario)...
+[ETAPA] Ativando ambiente virtual...
+[ETAPA] Diagnosticos do ambiente...
+Python 3.14.3
+G:\Downloads\sistema_de_aluguel-main\sistema_de_aluguel-main\.venv\Scripts\python.exe
+C:\Users\cris\AppData\Local\Microsoft\WindowsApps\python.exe
+C:\Users\cris\AppData\Local\Python\bin\python.exe
+pip 26.0.1 from G:\Downloads\sistema_de_aluguel-main\sistema_de_aluguel-main\.venv\Lib\site-packages\pip (python 3.14)
+['', 'G:\\Downloads\\sistema_de_aluguel-main\\sistema_de_aluguel-main\\src', 'C:\\Users\\cris\\AppData\\Local\\Python\\pythoncore-3.14-64\\python314.zip', 'C:\\Users\\cris\\AppData\\Local\\Python\\pythoncore-3.14-64\\DLLs', 'C:\\Users\\cris\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib', 'C:\\Users\\cris\\AppData\\Local\\Python\\pythoncore-3.14-64', 'G:\\Downloads\\sistema_de_aluguel-main\\sistema_de_aluguel-main\\.venv', 'G:\\Downloads\\sistema_de_aluguel-main\\sistema_de_aluguel-main\\.venv\\Lib\\site-packages']
+G:\Downloads\sistema_de_aluguel-main\sistema_de_aluguel-main
+OK import rental_manager G:\Downloads\sistema_de_aluguel-main\sistema_de_aluguel-main\src\rental_manager\__init__.py
+[ETAPA] Verificando dependencias (requirements.txt)...
+2026-02-24 18:40:05,171 [INFO] __main__: Starting Gerenciador de Produtos e Serviços v0.1.0
+2026-02-24 18:40:05,649 [INFO] rental_manager.utils.theme: Tema aplicado: dark (configurado: dark)
+2026-02-24 18:40:06,419 [INFO] FinanceScreen: Financeiro resumo carregado em 0.037s (período 2025-03-01..2026-02-24, pedidos=152)
+2026-02-24 18:40:06,617 [INFO] Agenda: Agenda consultas: período=2026-02-24..2026-03-03 status=None status_lista=('DRAFT', 'CONFIRMED', 'COMPLETED') pagamento=None busca=- registros=0 hoje=0 tempo=0.003s
+2026-02-24 18:40:06,630 [INFO] ProductsScreen: Estoque em lote para 10 itens calculado em 0.001s
+2026-02-24 18:40:06,666 [INFO] DocumentsScreen: Documentos carregados: periodo=2026-01-26..2026-02-24 tipo=- busca=- offset=0 registros=3 tempo=0.001s
+2026-02-24 18:40:08,215 [INFO] Agenda: Tempo Agenda: query=0.003s, transform=0.000s, render=0.000s, total=0.038s
+2026-02-24 18:40:28,726 [INFO] Agenda: Agenda consultas: período=2026-02-24..2026-03-03 status=None status_lista=('DRAFT', 'CONFIRMED', 'COMPLETED') pagamento=None busca=- registros=0 hoje=0 tempo=0.001s
+2026-02-24 18:40:28,752 [INFO] Agenda: Tempo Agenda: query=0.001s, transform=0.000s, render=0.000s, total=0.004s
+2026-02-24 18:40:36,281 [INFO] Agenda: Agenda cache hit para o período atual.
+2026-02-24 18:40:36,281 [INFO] Agenda: Agenda carregada do cache.
+2026-02-24 18:40:36,281 [INFO] Agenda: Tempo Agenda: query=0.001s, transform=0.000s, render=0.000s, total=0.004s
+2026-02-24 18:40:44,687 [INFO] Agenda: Agenda consultas: período=2026-02-24..2026-02-24 status=None status_lista=('DRAFT', 'CONFIRMED', 'COMPLETED') pagamento=None busca=- registros=0 hoje=0 tempo=0.001s
+2026-02-24 18:40:44,688 [INFO] Agenda: Tempo Agenda: query=0.001s, transform=0.000s, render=0.000s, total=0.005s
+2026-02-24 18:40:46,670 [INFO] Agenda: Agenda consultas: período=2026-02-02..2026-02-24 status=None status_lista=('DRAFT', 'CONFIRMED', 'COMPLETED') pagamento=None busca=- registros=23 hoje=0 tempo=0.002s
+2026-02-24 18:40:46,685 [INFO] Agenda: Tempo Agenda: query=0.002s, transform=0.000s, render=0.014s, total=0.018s
+2026-02-24 18:41:00,829 [INFO] Agenda: Agenda consultas: período=2026-02-02..2026-02-24 status=None status_lista=- pagamento=None busca=- registros=24 hoje=0 tempo=0.001s
+2026-02-24 18:41:00,865 [INFO] Agenda: Tempo Agenda: query=0.001s, transform=0.000s, render=0.015s, total=0.019s
+2026-02-24 18:41:03,128 [INFO] Agenda: Agenda consultas: período=2026-02-02..2026-02-24 status=None status_lista=('DRAFT', 'CONFIRMED', 'COMPLETED') pagamento=None busca=- registros=23 hoje=0 tempo=0.002s
+2026-02-24 18:41:03,172 [INFO] Agenda: Tempo Agenda: query=0.002s, transform=0.000s, render=0.018s, total=0.025s
+2026-02-24 18:41:04,278 [INFO] ProductsScreen: Estoque em lote para 10 itens calculado em 0.001s
+2026-02-24 18:41:04,848 [INFO] DocumentsScreen: Documentos carregados: periodo=2026-01-26..2026-02-24 tipo=- busca=- offset=0 registros=3 tempo=0.000s

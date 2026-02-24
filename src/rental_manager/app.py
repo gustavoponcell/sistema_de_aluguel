@@ -1,0 +1,117 @@
+"""Application entry point."""
+
+from __future__ import annotations
+
+import sys
+
+from PySide6 import QtWidgets
+
+from rental_manager.config import AppConfig
+from rental_manager.db.connection import get_connection
+from rental_manager.db.migrations import apply_migrations
+from rental_manager.logging_config import configure_logging, get_logger
+from rental_manager.paths import (
+    get_app_data_dir,
+    get_backup_dir,
+    get_config_path,
+    get_db_path,
+    get_exports_dir,
+    get_logs_dir,
+    get_pdfs_dir,
+)
+from rental_manager.repositories import CustomerRepo, DocumentRepository, ProductRepo
+from rental_manager.services.customer_service import CustomerService
+from rental_manager.services.document_service import DocumentService
+from rental_manager.services.expense_service import ExpenseService
+from rental_manager.services.inventory_service import InventoryService
+from rental_manager.services.order_service import OrderService
+from rental_manager.services.payment_service import PaymentService
+from rental_manager.services.product_service import ProductService
+from rental_manager.services.rental_service import RentalService
+from rental_manager.ui.app_services import AppServices
+from rental_manager.ui.data_bus import DataEventBus
+from rental_manager.ui.main_window import MainWindow
+from rental_manager.utils.backup import export_backup, load_backup_settings
+from rental_manager.utils.assistant_settings import ensure_assistant_section
+from rental_manager.utils.theme import ThemeManager
+from rental_manager.utils.updater import ensure_update_settings
+from rental_manager.version import __app_name__, __version__
+
+
+def main() -> int:
+    """Start the RentalManager application."""
+    configure_logging()
+    get_app_data_dir()
+    get_backup_dir()
+    get_logs_dir()
+    get_pdfs_dir()
+    get_exports_dir()
+    connection = get_connection(get_db_path())
+    apply_migrations(connection)
+
+    config = AppConfig()
+    config_path = get_config_path()
+    logger = get_logger(__name__)
+    logger.info("Starting %s v%s", __app_name__, __version__)
+    try:
+        ensure_update_settings(config_path)
+    except Exception:
+        logger.exception("Falha ao carregar configurações de atualização.")
+    try:
+        ensure_assistant_section(config_path)
+    except Exception:
+        logger.exception("Falha ao preparar configurações do Assistente.")
+    backup_settings = load_backup_settings(config_path)
+    if backup_settings.auto_backup_on_start:
+        try:
+            backup_path = export_backup(get_db_path(), get_backup_dir())
+            logger.info("Backup automático criado em %s", backup_path)
+        except Exception:
+            logger.exception("Falha ao criar backup automático.")
+
+    app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName(config.app_name)
+    app.setOrganizationName(config.organization_name)
+    app.setOrganizationDomain(config.organization_domain)
+    theme_manager = ThemeManager(app, config_path)
+
+    data_bus = DataEventBus()
+    customer_repo = CustomerRepo(connection)
+    document_repo = DocumentRepository(connection)
+    product_repo = ProductRepo(connection)
+    customer_service = CustomerService(connection, customer_repo)
+    product_service = ProductService(connection, product_repo)
+    inventory_service = InventoryService(connection)
+    order_service = OrderService(connection)
+    rental_service = RentalService(connection)
+    payment_service = PaymentService(connection)
+    expense_service = ExpenseService(connection)
+    document_service = DocumentService(connection, document_repo)
+
+    services = AppServices(
+        connection=connection,
+        config_path=config_path,
+        data_bus=data_bus,
+        customer_repo=customer_repo,
+        document_repo=document_repo,
+        product_repo=product_repo,
+        customer_service=customer_service,
+        document_service=document_service,
+        product_service=product_service,
+        inventory_service=inventory_service,
+        order_service=order_service,
+        rental_service=rental_service,
+        payment_service=payment_service,
+        expense_service=expense_service,
+        theme_manager=theme_manager,
+    )
+
+    window = MainWindow(services)
+    app.aboutToQuit.connect(connection.close)
+    window.show()
+
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
